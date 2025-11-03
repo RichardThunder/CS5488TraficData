@@ -74,3 +74,6 @@ traffic_data_partitioned/
 202508/
 
 *.7z
+dataset
+
+*.out

@@ -8,7 +8,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, explode, input_file_name, regexp_extract, to_timestamp, concat, lit
 import os
 
-def main(dir="202508"):
+def main(dir="202508", output_dir=None):
     # Initialize Spark Session with optimized memory settings
     spark = SparkSession.builder \
         .appName("Traffic XML to CSV - Memory Efficient") \
@@ -159,12 +159,13 @@ def main(dir="202508"):
 
     # Setup output paths - local filesystem and HDFS
     base_dir = os.path.abspath(".")
-    local_output_path = f"file://{base_dir}/traffic_data_partitioned"
+    output_path = os.path.join(base_dir, output_dir) if output_dir else os.path.join(base_dir, "traffic_data_partitioned")
+    local_output_path = f"file://{output_path}"
     hdfs_output_path = "hdfs:///user/richard/traffic_data_partitioned"
 
     print(f"\nOutput locations:")
-    print(f"  Local: {base_dir}/traffic_data_partitioned/")
-    print(f"  HDFS: {hdfs_output_path}")
+    print(f"  Local: {output_path}/")
+    #print(f"  HDFS: {hdfs_output_path}")
 
     # Save to local filesystem first
     print(f"\n[1/2] Saving to LOCAL filesystem...")
@@ -173,7 +174,7 @@ def main(dir="202508"):
 
     # Repartition to 1 partition per date, then partition by date
     merged_df.repartition(1, "date") \
-        .write.mode("overwrite") \
+        .write.mode("append") \
         .option("compression", "snappy") \
         .partitionBy("date") \
         .csv(local_output_path, header=True)
@@ -190,29 +191,29 @@ def main(dir="202508"):
     except:
         pass
 
-    # Save to HDFS
-    print(f"\n[2/2] Saving to HDFS...")
-    print(f"Writing to {hdfs_output_path}...")
+    # # Save to HDFS
+    # print(f"\n[2/2] Saving to HDFS...")
+    # print(f"Writing to {hdfs_output_path}...")
 
-    # Use the same data, repartition and save to HDFS
-    merged_df.repartition(1, "date") \
-        .write.mode("overwrite") \
-        .option("compression", "snappy") \
-        .partitionBy("date") \
-        .csv(hdfs_output_path, header=True)
-    print(f"✓ HDFS: Data saved (Snappy compressed, 1 file per date)")
+    # # Use the same data, repartition and save to HDFS
+    # merged_df.repartition(1, "date") \
+    #     .write.mode("append") \
+    #     .option("compression", "snappy") \
+    #     .partitionBy("date") \
+    #     .csv(hdfs_output_path, header=True)
+    # print(f"✓ HDFS: Data saved (Snappy compressed, 1 file per date)")
 
-    # Get HDFS size
-    try:
-        result = subprocess.run(['hdfs', 'dfs', '-du', '-s', '-h', hdfs_output_path],
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            size_line = result.stdout.strip()
-            if size_line:
-                size = size_line.split()[0]
-                print(f"  HDFS size: {size}")
-    except:
-        pass
+    # # Get HDFS size
+    # try:
+    #     result = subprocess.run(['hdfs', 'dfs', '-du', '-s', '-h', hdfs_output_path],
+    #                           capture_output=True, text=True)
+    #     if result.returncode == 0:
+    #         size_line = result.stdout.strip()
+    #         if size_line:
+    #             size = size_line.split()[0]
+    #             print(f"  HDFS size: {size}")
+    # except:
+    #     pass
 
     # Print statistics
     print("\n" + "="*80)
@@ -245,4 +246,10 @@ def main(dir="202508"):
     print("\n" + "="*80)
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        input_dir = sys.argv[1]
+        output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+        main(dir=input_dir, output_dir=output_dir)
+    else:
+        main()

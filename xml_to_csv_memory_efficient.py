@@ -164,56 +164,56 @@ def main(dir="202508", output_dir=None):
     hdfs_output_path = "hdfs:///user/richard/traffic_data_partitioned"
 
     print(f"\nOutput locations:")
-    print(f"  Local: {output_path}/")
-    #print(f"  HDFS: {hdfs_output_path}")
+    #print(f"  Local: {output_path}/")
+    print(f"  HDFS: {hdfs_output_path}")
 
-    # Save to local filesystem first
-    print(f"\n[1/2] Saving to LOCAL filesystem...")
-    print("Using Snappy compression for faster I/O...")
-    print("Merging files per date (one CSV per date)...")
+    # # Save to local filesystem first
+    # print(f"\n[1/2] Saving to LOCAL filesystem...")
+    # print("Using Snappy compression for faster I/O...")
+    # print("Merging files per date (one CSV per date)...")
 
-    # Repartition to 1 partition per date, then partition by date
-    merged_df.repartition(1, "date") \
-        .write.mode("append") \
-        .option("compression", "snappy") \
-        .partitionBy("date") \
-        .csv(local_output_path, header=True)
-    print(f"✓ Local filesystem: Data saved (Snappy compressed, 1 file per date)")
-
-    # Get local size
-    import subprocess
-    try:
-        result = subprocess.run(['du', '-sh', local_output_path.replace("file://", "")],
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            size = result.stdout.split()[0]
-            print(f"  Local size: {size}")
-    except:
-        pass
-
-    # # Save to HDFS
-    # print(f"\n[2/2] Saving to HDFS...")
-    # print(f"Writing to {hdfs_output_path}...")
-
-    # # Use the same data, repartition and save to HDFS
+    # # Repartition to 1 partition per date, then partition by date
     # merged_df.repartition(1, "date") \
     #     .write.mode("append") \
     #     .option("compression", "snappy") \
     #     .partitionBy("date") \
-    #     .csv(hdfs_output_path, header=True)
-    # print(f"✓ HDFS: Data saved (Snappy compressed, 1 file per date)")
+    #     .csv(local_output_path, header=True)
+    # print(f"✓ Local filesystem: Data saved (Snappy compressed, 1 file per date)")
 
-    # # Get HDFS size
+    # # Get local size
+    # import subprocess
     # try:
-    #     result = subprocess.run(['hdfs', 'dfs', '-du', '-s', '-h', hdfs_output_path],
+    #     result = subprocess.run(['du', '-sh', local_output_path.replace("file://", "")],
     #                           capture_output=True, text=True)
     #     if result.returncode == 0:
-    #         size_line = result.stdout.strip()
-    #         if size_line:
-    #             size = size_line.split()[0]
-    #             print(f"  HDFS size: {size}")
+    #         size = result.stdout.split()[0]
+    #         print(f"  Local size: {size}")
     # except:
     #     pass
+
+    # Save to HDFS
+    print(f"\n[2/2] Saving to HDFS...")
+    print(f"Writing to {hdfs_output_path}...")
+
+    # Use the same data, repartition and save to HDFS
+    merged_df.repartition(1, "date") \
+        .write.mode("append") \
+        .option("compression", "snappy") \
+        .partitionBy("date") \
+        .csv(hdfs_output_path, header=True)
+    print(f"✓ HDFS: Data saved (Snappy compressed, 1 file per date)")
+
+    # Get HDFS size
+    try:
+        result = subprocess.run(['hdfs', 'dfs', '-du', '-s', '-h', hdfs_output_path],
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            size_line = result.stdout.strip()
+            if size_line:
+                size = size_line.split()[0]
+                print(f"  HDFS size: {size}")
+    except:
+        pass
 
     # Print statistics
     print("\n" + "="*80)

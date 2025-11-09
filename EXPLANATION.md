@@ -1,4 +1,4 @@
-# PySpark XML to CSV Converter - Detailed Explanation
+@# PySpark XML to CSV Converter - Detailed Explanation
 
 ## What This Code Does
 
@@ -163,6 +163,85 @@ merged_df.write.partitionBy("date").csv("traffic_data_partitioned", header=True)
 | Rotation | int | Detector rotation angle | 100 |
 | GeometryEasting | double | GPS coordinate | 833758 |
 | GeometryNorthing | double | GPS coordinate | 812147 |
+
+=== Data Schema ===
+root
+ |-- detector_id: string (nullable = true)
+ |-- direction: string (nullable = true)
+ |-- lane_id: string (nullable = true)
+ |-- occupancy: integer (nullable = true)
+ |-- speed: integer (nullable = true)
+ |-- valid: string (nullable = true)
+ |-- volume: integer (nullable = true)
+ |-- standard_deviation: double (nullable = true)
+ |-- period_from: timestamp (nullable = true)
+ |-- period_to: timestamp (nullable = true)
+ |-- District: string (nullable = true)
+ |-- Road_EN: string (nullable = true)
+ |-- Road_TC: string (nullable = true)
+ |-- Road_SC: string (nullable = true)
+ |-- Rotation: integer (nullable = true)
+ |-- GeometryEasting: integer (nullable = true)
+ |-- GeometryNorthing: integer (nullable = true)
+ |-- date: date (nullable = true)
+
+ +-----------+----------+-----------+---------+-----+-----+------+------------------+-------------------+-------------------+--------+-----------------------------------------------+-----------------------------+-----------------------------+--------+---------------+----------------+----------+
+|detector_id|direction |lane_id    |occupancy|speed|valid|volume|standard_deviation|period_from        |period_to          |District|Road_EN                                        |Road_TC                      |Road_SC                      |Rotation|GeometryEasting|GeometryNorthing|date      |
++-----------+----------+-----------+---------+-----+-----+------+------------------+-------------------+-------------------+--------+-----------------------------------------------+-----------------------------+-----------------------------+--------+---------------+----------------+----------+
+|AID01101   |South East|Fast Lane  |8        |72   |Y    |10    |4.0               |2025-06-20 10:29:00|2025-06-20 10:29:30|Southern|Aberdeen Praya Road near Abba House - Eastbound|香港仔海旁道近福群大樓 - 東行|香港仔海旁道近福群大楼 - 东行|100     |833758         |812147          |2025-06-20|
+|AID01101   |South East|Fast Lane  |5        |81   |Y    |8     |6.7               |2025-06-20 09:09:00|2025-06-20 09:09:30|Southern|Aberdeen Praya Road near Abba House - Eastbound|香港仔海旁道近福群大樓 - 東行|香港仔海旁道近福群大楼 - 东行|100     |833758         |812147          |2025-06-20|
+|AID01101   |South East|Middle Lane|6        |67   |Y    |7     |11.8              |2025-06-20 10:29:00|2025-06-20 10:29:30|Southern|Aberdeen Praya Road near Abba House - Eastbound|香港仔海旁道近福群大樓 - 東行|香港仔海旁道近福群大楼 - 东行|100     |833758         |812147          |2025-06-20|
+|AID01101   |South East|Middle Lane|1        |73   |Y    |3     |15.4              |2025-06-20 09:09:00|2025-06-20 09:09:30|Southern|Aberdeen Praya Road near Abba House - Eastbound|香港仔海旁道近福群大樓 - 東行|香港仔海旁道近福群大楼 - 东行|100     |833758         |812147          |2025-06-20|
+|AID01101   |South East|Slow Lane  |0        |70   |Y    |0     |0.0               |2025-06-20 10:29:00|2025-06-20 10:29:30|Southern|Aberdeen Praya Road near Abba House - Eastbound|香港仔海旁道近福群大樓 - 東行|香港仔海旁道近福群大楼 - 东行|100     |833758         |812147          |2025-06-20|
++-----------+----------+-----------+---------+-----+-----+------+------------------+-------------------+-------------------+--------+-----------------------------------------------+-----------------------------+-----------------------------+--------+---------------+----------------+----------+
+only showing top 5 rows
+
+Total Records: 1,627,591,157
+
++-----+----------+------------------+
+|valid|     count|        percentage|
++-----+----------+------------------+
+|    Y|1602913047|   98.483764802121|
+|    N|  24678110|1.5162351978789965|
++-----+----------+------------------+
+
+--- Missing/Null Values ---
+-RECORD 0---------------------
+ detector_id        | 0       
+ direction          | 506995  
+ lane_id            | 0       
+ occupancy          | 0       
+ speed              | 0       
+ valid              | 0       
+ volume             | 0       
+ standard_deviation | 0       
+ period_from        | 0       
+ period_to          | 0       
+ District           | 1212558 
+ Road_EN            | 1212558 
+ Road_TC            | 1212558 
+ Road_SC            | 1212558 
+ Rotation           | 1212558 
+ GeometryEasting    | 1212558 
+ GeometryNorthing   | 1212558 
+ date               | 0       
+
+--- Temporal Coverage ---
++----------+----------+-----------+
+|Start_Date|  End_Date|Unique_Days|
++----------+----------+-----------+
+|2024-08-31|2025-08-31|        366|
++----------+----------+-----------+
+
++----------------+----------------+------------+
+|Unique_Detectors|Unique_Districts|Unique_Roads|
++----------------+----------------+------------+
+|             784|              19|         778|
++----------------+----------------+------------+
+
+[3/9] Caching valid records...
+Valid records cached: 1,602,913,047
+
 
 ## Environment Requirements
 

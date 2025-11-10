@@ -60,8 +60,8 @@ def load_data(spark: SparkSession, file_path: str) -> Optional[DataFrame]:
     )
     try:
         df = spark.read.schema(traffic_data_schema).csv(file_path, header=True)
-        logger.info("#" * 40, "Print Data Frame schema")
-        logger.info("#" * 40, df.printSchema())
+        logger.info(f"{'#' * 40} Print Data Frame schema")
+        logger.info(df.printSchema())
         return df
     except Exception as e:
         logger.error("Error read csv file %s", str(e))
@@ -76,34 +76,34 @@ def miss_value_check(df: DataFrame) -> Optional[DataFrame]:
         df_missing_summary.show()
 
         df_cleaned = df.na.drop()
-        logger.info("#" * 40, "Data cleaning completed, missing vlaues were dropped.")
+        logger.info(f"{'#' * 40} Data cleaning completed, missing vlaues were dropped.")
         return df_cleaned
     except Exception as e:
-        logger.error("Data cleaning error %s", e)
+        logger.error(f"{'#' * 40} Data cleaning error %s", e)
         return None
 
 
 def main():
-    logger.info("#" * 40, "Data validation process started.")
+    logger.info(f"{'#' * 40} Data validation process started.")
     DATA_FILE_PATH = "traffic_data_partitioned/date=2025-08-31"
 
     try:
         sparkSession = initialize_spark()
-        logger.info("#" * 40, "SparkSession created successfully.")
+        logger.info(f"{'#' * 40} SparkSession created successfully.")
     except Exception as e:
-        logger.error("Error initializing SparkSession: %s", str(e))
+        logger.error(f"{'#' * 40} Error initializing SparkSession: %s", str(e))
         return
     df = load_data(sparkSession, DATA_FILE_PATH)
     if df is None:
         logger.error(
-            "Data loading failed (returned None). Aborting validation process."
+            f"{'#' * 40} Data loading failed (returned None). Aborting validation process."
         )
         sparkSession.stop()
         return
 
     df_clean = miss_value_check(df)
     if df_clean is None:
-        logger.error("Data cleaning error.")
+        logger.error(f"{'#' * 40} Data cleaning error.")
         return
 
     df_clean.show(20)

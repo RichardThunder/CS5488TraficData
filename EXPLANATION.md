@@ -142,6 +142,20 @@ merged_df.write.partitionBy("date").csv("traffic_data_partitioned", header=True)
 - Structure: `traffic_data_partitioned/date=2025-08-26/part-*.csv`
 - Good for: Query performance, filtering by date
 
+**Partitioned by block size**
+现在我们有了精确的总数据量（17.66 GB），我们可以计算出最佳的分区数。
+
+目标：让每个文件大小接近 HDFS 块大小（例如 128 MB）。
+
+总大小：18,961,738,254 字节
+
+目标块大小 (128 MiB)：134,217,728 字节
+
+最佳分区数：18,961,738,254 / 134,217,728 ≈ 141.27
+
+您应该将分区数设置为 141 或 142。
+
+
 ### Output Schema
 
 | Column | Type | Description | Example |

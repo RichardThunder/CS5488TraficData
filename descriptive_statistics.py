@@ -114,7 +114,7 @@ def overall_statistics(df):
     df_numeric = df.withColumn('speed', col('speed').cast(DoubleType())) \
                    .withColumn('volume', col('volume').cast(IntegerType())) \
                    .withColumn('occupancy', col('occupancy').cast(DoubleType())) \
-                   .withColumn('sd', col('standard_deviation').cast(DoubleType()))
+                   .withColumn('standard_deviation', col('standard_deviation').cast(DoubleType()))
 
     # Basic statistics
     print("\n--- Speed (km/h) ---")
@@ -155,11 +155,11 @@ def overall_statistics(df):
 
     print("\n--- Speed Standard Deviation (Flow Stability) ---")
     df_numeric.select(
-        avg('sd').alias('Mean'),
-        percentile_approx('sd', 0.5).alias('Median'),
-        stddev('sd').alias('Std_Dev'),
-        _min('sd').alias('Min'),
-        _max('sd').alias('Max')
+        avg('standard_deviation').alias('Mean'),
+        percentile_approx('standard_deviation', 0.5).alias('Median'),
+        stddev('standard_deviation').alias('Std_Dev'),
+        _min('standard_deviation').alias('Min'),
+        _max('standard_deviation').alias('Max')
     ).show()
 
     return df_numeric
@@ -401,7 +401,9 @@ def main():
             # Save valid dataset to Parquet for future runs
             print(f"\n[3/9] Saving valid dataset to Parquet for better read performance...")
             print(f"        Writing to: {VALID_DATA_PATH}")
-            clean_df.write.mode("overwrite").parquet(VALID_DATA_PATH)
+            clean_df.repartition(142)
+                .write.mode("overwrite")
+                .parquet(VALID_DATA_PATH)
             print(f"        ✓ Valid dataset saved ({valid_count:,} records)")
 
             # Reload from Parquet for consistent performance

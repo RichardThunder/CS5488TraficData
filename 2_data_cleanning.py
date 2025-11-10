@@ -60,8 +60,8 @@ def load_data(spark: SparkSession, file_path: str) -> Optional[DataFrame]:
     )
     try:
         df = spark.read.schema(traffic_data_schema).csv(file_path, header=True)
-        logger.info("Print Data Frame schema")
-        logger.info(df.printSchema())
+        logger.info("#" * 40, "Print Data Frame schema")
+        logger.info("#" * 40, df.printSchema())
         return df
     except Exception as e:
         logger.error("Error read csv file %s", str(e))
@@ -76,7 +76,7 @@ def miss_value_check(df: DataFrame) -> Optional[DataFrame]:
         df_missing_summary.show()
 
         df_cleaned = df.na.drop()
-        logger.info("Data cleaning completed, missing vlaues were dropped.")
+        logger.info("#" * 40, "Data cleaning completed, missing vlaues were dropped.")
         return df_cleaned
     except Exception as e:
         logger.error("Data cleaning error %s", e)
@@ -84,12 +84,12 @@ def miss_value_check(df: DataFrame) -> Optional[DataFrame]:
 
 
 def main():
-    logger.info("Data validation process started.")
+    logger.info("#" * 40, "Data validation process started.")
     DATA_FILE_PATH = "traffic_data_partitioned/date=2025-08-31"
 
     try:
         sparkSession = initialize_spark()
-        logger.info("SparkSession created successfully.")
+        logger.info("#" * 40, "SparkSession created successfully.")
     except Exception as e:
         logger.error("Error initializing SparkSession: %s", str(e))
         return

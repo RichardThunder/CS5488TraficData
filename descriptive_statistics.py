@@ -401,9 +401,7 @@ def main():
             # Save valid dataset to Parquet for future runs
             print(f"\n[3/9] Saving valid dataset to Parquet for better read performance...")
             print(f"        Writing to: {VALID_DATA_PATH}")
-            clean_df.repartition(142)
-                .write.mode("overwrite")
-                .parquet(VALID_DATA_PATH)
+            clean_df.repartition(142).write.mode("overwrite").parquet(VALID_DATA_PATH)
             print(f"        ✓ Valid dataset saved ({valid_count:,} records)")
 
             # Reload from Parquet for consistent performance

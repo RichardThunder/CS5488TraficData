@@ -256,6 +256,13 @@ Total Records: 1,627,591,157
 [3/9] Caching valid records...
 Valid records cached: 1,602,913,047
 
+--- Spatial Coverage ---
+
++----------------+----------------+------------+
+|Unique_Detectors|Unique_Districts|Unique_Roads|
++----------------+----------------+------------+
+|             784|              19|         778|
++----------------+----------------+------------+
 
 ## Environment Requirements
 

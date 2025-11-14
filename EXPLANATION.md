@@ -481,3 +481,80 @@ xml_path = f"file://{os.path.abspath(dir)}/*.xml"
 ## License
 
 This code processes Hong Kong government open data, which is freely available for public use.
+
+
+Here's a direct comparison between CSV and Parquet.
+
+The main difference is that **CSV is a simple, row-based text format**, while **Parquet is a complex, high-performance, columnar binary format**.
+
+For big data analytics, Parquet is almost always the better choice due to its massive advantages in storage efficiency and query speed. CSV is best suited for small-scale data, human readability, and simple data exchange.
+
+-----
+
+### 📊 At a Glance: CSV vs. Parquet
+
+| Feature | CSV (Comma-Separated Values) | Parquet |
+| :--- | :--- | :--- |
+| **Storage Format** | **Row-based**. Stores data one row at a time. | **Columnar**. Stores data one column at a time. |
+| **File Size** | Large. Uncompressed plain text. | **Very Small**. Highly efficient compression. |
+| **Query Speed** | **Slow** for analytics. Must read the entire file. | **Very Fast** for analytics. Can read only the needed columns. |
+| **Data Types** | No. Stores everything as text. | Yes. Embeds a schema with specific data types. |
+| **Readability** | **Human-readable** with any text editor. | **Not human-readable**. Requires special tools. |
+| **Use Case** | Small datasets, spreadsheets, human editing. | Big data, data lakes, analytics (OLAP). |
+
+-----
+
+### \#\# 📁 CSV (Row-Based)
+
+In a CSV file, all the data for a single record (row) is stored together, separated by commas.
+
+  * **Example:** A file `users.csv` would store data like this:
+    ```
+    id,name,country
+    1,Alice,USA
+    2,Bob,Canada
+    3,Charlie,UK
+    ```
+  * **How it's read:** If you want to find the `country` for all users, you still have to read the entire file—including all the `id` and `name` data—line by line. This is extremely slow for large files.
+  * **Pros:**
+      * **Simple:** Easy to understand, create, and edit by hand.
+      * **Universal:** Can be opened by almost any program, including Excel and Google Sheets.
+  * **Cons:**
+      * **Inefficient Storage:** No compression; text repetition (like "USA" appearing many times) takes up a lot of space.
+      * **Slow Queries:** Must scan the entire file for most queries.
+      * **No Schema:** Doesn't enforce data types (e.g., is `1` a number or text?). This can lead to data-quality problems.
+
+-----
+
+### \#\# 🗂️ Parquet (Columnar)
+
+Parquet, an open-source format, was designed for efficient big data analytics. It stores all the data for a single column together.
+
+  * **Example:** For the same data, Parquet mentally organizes it like this:
+      * **`id` column:** `1, 2, 3`
+      * **`name` column:** `Alice, Bob, Charlie`
+      * **`country` column:** `USA, Canada, UK`
+  * **How it's read:** If you want to find the `country` for all users, Parquet reads **only the `country` column block**. It completely skips the `id` and `name` data, making the query incredibly fast.
+  * **Pros:**
+      * **Fast Queries:** This "column pruning" is ideal for analytical queries (e.g., `SUM()`, `AVG()`, `GROUP BY`) that only touch a few columns.
+      * **Efficient Compression:** Data in a single column is very similar (e.g., all numbers or all text). This allows for highly effective compression, leading to file sizes that are often **75% smaller** (or more) than the equivalent CSV.
+      * **Schema-Aware:** Parquet files store the schema (column names, data types) within the file, ensuring data integrity and consistency. It also supports schema evolution (e.g., adding new columns).
+  * **Cons:**
+      * **Not Human-Readable:** It's a binary format, so you can't just open it in a text editor.
+      * **Complex:** Not ideal for simple, small-scale tasks or frequent row-by-row edits.
+
+### \#\# 🤔 When to Use Which?
+
+  * ✅ **Use CSV when:**
+
+      * You have a **small dataset** (e.g., a few thousand rows).
+      * You need to **manually inspect** or edit the file in a text editor or Excel.
+      * You need a simple, universal format for **exporting data** to a non-technical user.
+      * Your task involves reading or writing **entire rows** at a time (transactional).
+
+  * ✅ **Use Parquet when:**
+
+      * You are working with **big data** (millions or billions of rows).
+      * You are building a **data lake** or **data warehouse** (e.g., in AWS S3, Spark, Hadoop).
+      * Your primary workload is **analytical queries** (OLAP).
+      * **Query speed** and **storage cost** are important.

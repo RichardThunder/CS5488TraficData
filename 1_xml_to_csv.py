@@ -1,21 +1,21 @@
-"""
-Memory-efficient PySpark script for XML to CSV conversion
-Optimized for 32GB RAM, 6-core system
-Avoids caching large datasets
-"""
-
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, explode, input_file_name, regexp_extract, to_timestamp, concat, lit
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, explode, regexp_extract, to_timestamp, concat, lit, when
 import os
+import logging
+from typing import Optional
 
-def main(dir="202508", output_dir=None):
-    # Initialize Spark Session with optimized memory settings
-    spark = SparkSession.builder \
+GEOLOCATION_PATH = "Locations_of_Traffic_Detectors.gdb_converted.csv"
+
+
+
+logging.basicConfig(
+    level = logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+def initialize_spark() -> SparkSession:
+    return SparkSession.builder \
         .appName("Traffic XML to CSV - Memory Efficient") \
-        .config("spark.driver.memory", "20g") \
-        .config("spark.executor.memory", "8g") \
-        .config("spark.memory.fraction", "0.8") \
-        .config("spark.memory.storageFraction", "0.2") \
         .config("spark.sql.shuffle.partitions", "12") \
         .config("spark.default.parallelism", "12") \
         .config("spark.sql.adaptive.enabled", "true") \
@@ -23,52 +23,42 @@ def main(dir="202508", output_dir=None):
         .config("spark.sql.files.maxPartitionBytes", "128MB") \
         .getOrCreate()
 
-    print("Spark Session initialized with memory-efficient configuration")
-    print(f"Driver Memory: 20GB, Executor Memory: 8GB")
 
-    # Read all XML files
-    print(f"Reading XML files from {dir}...")
-    xml_files = [os.path.join(dir, f) for f in os.listdir(dir) if f.endswith('.xml')]
-    print(f"Found {len(xml_files)} XML files")
+# read xml files from local storage
+def XML_reader(local_dir:str, spark: SparkSession) -> Optional[DataFrame]:
+    #xml_files = [os.path.join(local_dir,f) for f in os.listdir(local_dir) if f.endswith('.xml')]
+    #xml_paths = [f"file://{os.path.abspath(f)}" for f in xml_files]
+    #logger.info(f"{'#'*40} Reading XML files from directory: {xml_paths}")
+    #logger.info(f"{'#'*40}, Found {len(xml_paths)} XML files in directory: {local_dir}")
+    try:
+        return spark.read.format("xml")\
+                .option("rowTag", "raw_speed_volume_list") \
+            .option("inferSchema", "false") \
+            .option("valueTag", "_VALUE") \
+            .option("attributePrefix", "_") \
+            .option("charset", "UTF-8") \
+            .option("mode", "DROPMALFORMED") \
+            .option("columnNameOfCorruptRecord", "_corrupt_record") \
+            .load(local_dir) 
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error reading xml files. {e}")
+        return None
+        
+def explode_periods(df:DataFrame) -> Optional[DataFrame]:
+    try:
+        return df.select(
+            col("date"),
+            explode(col("periods.period")).alias("period_details")
+        )
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error explode periods. {e}")
+        return None
 
-    xml_paths = [f"file://{os.path.abspath(f)}" for f in xml_files]
-
-    print(f"Loading and processing XML files (no caching to save memory)...")
-
-    # Read XML without caching - let Spark manage memory
-    road_data = spark.read.format("xml") \
-        .option("rowTag", "raw_speed_volume_list") \
-        .option("inferSchema", "false") \
-        .option("valueTag", "_VALUE") \
-        .option("attributePrefix", "_") \
-        .option("charset", "UTF-8") \
-        .option("mode", "DROPMALFORMED") \
-        .option("columnNameOfCorruptRecord", "_corrupt_record") \
-        .load(xml_paths) \
-        .withColumn("source_file", input_file_name())
-
-    print("XML files loaded successfully")
-    print("Schema:")
-    road_data.printSchema()
-
-    # Count root records
-    road_data_count = road_data.count()
-    print(f"Loaded {road_data_count} root records (one per XML file)")
-
-    # Process data without intermediate caching
-    print("Flattening XML structure...")
-
-    # Step 1: Explode periods
-    period_df = road_data.select(
+def explode_detector(df:DataFrame) -> Optional[DataFrame]:
+    try:
+        return df.select(
         col("date"),
-        col("source_file"),
-        explode(col("periods.period")).alias("period_details")
-    )
-
-    # Step 2: Explode detectors and clean timestamps
-    exploded_detector_df = period_df.select(
-        col("date"),
-        col("source_file"),
+        #col("source_file"),
         col("period_details.period_from").alias("time_from"),
         col("period_details.period_to").alias("time_to"),
         explode(col("period_details.detectors.detector")).alias("detector_details")
@@ -79,20 +69,27 @@ def main(dir="202508", output_dir=None):
     .withColumn("period_from", to_timestamp(concat(col("clean_date"), lit(" "), col("clean_time_from")))) \
     .withColumn("period_to", to_timestamp(concat(col("clean_date"), lit(" "), col("clean_time_to")))) \
     .drop("clean_date", "clean_time_from", "clean_time_to")
-
-    # Step 3: Explode lanes
-    exploded_lane_df = exploded_detector_df.select(
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error explode detector records. {e}")
+        return None
+    
+def explode_lane(df:DataFrame) -> Optional[DataFrame]:
+    try:
+        return df.select(
         col("date"),
-        col("source_file"),
         col("period_from"),
         col("period_to"),
         col("detector_details.detector_id"),
         col("detector_details.direction"),
         explode(col("detector_details.lanes.lane")).alias("lane_details")
-    )
+        )
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error explode lane records. {e}")
+        return None
 
-    # Step 4: Flatten to final structure
-    traffic_df = exploded_lane_df.select(
+def explode_final(df:DataFrame) -> Optional[DataFrame]:
+    try:
+        return df.select(
         col("detector_id"),
         col("direction"),
         col("lane_details.lane_id"),
@@ -103,30 +100,78 @@ def main(dir="202508", output_dir=None):
         col("lane_details.`s.d.`").alias("standard_deviation"),
         col("period_from"),
         col("period_to"),
-        col("date"),
-        col("source_file")
-    )
+        col("date")
+        )
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error explode to final dataframe {e}")
+        return None
 
-    print(f"Processing traffic data...")
+def read_location_data(file_path: str, spark:SparkSession) -> Optional[DataFrame]:
+    try:
+        return spark.read.option("header", "true").option("inferSchema","true").csv(file_path)
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error read location data. {e}")
+        return None
+
+    
+    
+def main(dir:str = "202508", geoLocationPath: str = GEOLOCATION_PATH):
+    HDFS_OUTPUT_PATH = f"hdfs:///traffic_data_partitioned/{dir.split('/')[-1]}"
+
+    spark = initialize_spark()
+    logger.info(f"{'#'*40} Spark Session initialized with memory-efficient configuration")
+    
+    road_data = XML_reader(dir,spark)
+    if road_data == None:
+        return 
+    logger.info(f"{'#'*40} XML files loaded successfully")
+    logger.info(f"{'#'*40} Schema:")
+    road_data.printSchema()
+    
+    road_data_count = road_data.count()
+    logger.info(f"{'#'*40} Loaded {road_data_count} root records (one per XML file)")
+    
+    logger.info(f"{'#'*40} Flattening XML structure...")
+    
+    periods_df = explode_periods(road_data)
+    if periods_df == None:
+        return
+    logger.info(f"{'#'*40} Successfully explode Periods records")
+    
+    
+    detector_df = explode_detector(periods_df)
+    if detector_df == None:
+        return
+    logger.info(f"{'#'*40} Successfully explode Detector records")
+
+    lane_df = explode_lane(detector_df)
+    if lane_df == None:
+        return
+    logger.info(f"{'#'*40} Successfully explode Lane records")
+    
+    final_df = explode_final(lane_df)
+    if final_df == None:
+        return 
+    logger.info(f"{'#'*40} Successfully explode Final records")
+    
+    traffic_df = final_df.filter(col("valid") == 'Y').drop("valid")
+    logger.info(f"{'#'*40} Drop invalid data and Drop valid column.")
+    
+    logger.info(f"{'#'*40} Processing traffic data...")
     traffic_count = traffic_df.count()
-    print(f"Successfully processed {traffic_count:,} traffic records from XML files")
-
-    print("Sample data:")
+    logger.info(f"{'#'*40} Successfully processed {traffic_count:,} traffic records from XML files")
+    logger.info(f"{'#'*40} Sample data:")
     traffic_df.show(10, truncate=False)
-
-    # Read location data
-    print("Reading location data...")
-    geolocation_path = "Locations_of_Traffic_Detectors.gdb_converted.csv"
-    geolocation_df = spark.read \
-        .option("header", "true") \
-        .option("inferSchema", "true") \
-        .csv(geolocation_path)
-
-    print(f"Location data contains {geolocation_df.count()} records")
-
+    geolocation_df = read_location_data(geoLocationPath, spark)
+    if geolocation_df == None:
+        return
+    # merge Central and Western , Central & Western to Central and Western
+    geolocation_df = geolocation_df.withColumn('District', when(col("District") == "Central & Western", "Central and Western").otherwise(col("District")))
+    logger.info(f"{'#'*40} Location data contains {geolocation_df.count()} records")
+    
     # Merge traffic data with location data
-    print("Merging traffic data with location data...")
-    merged_df = traffic_df.join(
+    try:
+        merged_df = traffic_df.join(
         geolocation_df,
         traffic_df["detector_id"] == geolocation_df["AID_ID_Number"],
         "left"
@@ -136,7 +181,6 @@ def main(dir="202508", output_dir=None):
         traffic_df["lane_id"],
         traffic_df["occupancy"],
         traffic_df["speed"],
-        traffic_df["valid"],
         traffic_df["volume"],
         traffic_df["standard_deviation"],
         traffic_df["period_from"],
@@ -144,112 +188,57 @@ def main(dir="202508", output_dir=None):
         traffic_df["date"],
         geolocation_df["District"],
         geolocation_df["Road_EN"],
-        geolocation_df["Road_TC"],
-        geolocation_df["Road_SC"],
         geolocation_df["Rotation"],
         geolocation_df["GeometryEasting"],
         geolocation_df["GeometryNorthing"]
     )
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error merge traffic and location data. {e}")
+        return
 
-    print(f"Merged data contains {merged_df.count():,} records")
-    print("Sample merged data:")
-    merged_df.show(10, truncate=False)
-
+    logger.info((f"{'#'*40} Merged data contains {merged_df.count():,} records"))
+    logger.info(f"Sample merged data: ")
+    merged_df.show(10,truncate=False)
     merged_df.printSchema()
+    
+    logger.info(f"{'#'*40} Output location: HDFS: {HDFS_OUTPUT_PATH}")
+    logger.info(f"{'#'*40} Saving to HDFS")
 
-    # Setup output paths - local filesystem and HDFS
-    base_dir = os.path.abspath(".")
-    output_path = os.path.join(base_dir, output_dir) if output_dir else os.path.join(base_dir, "traffic_data_partitioned")
-    local_output_path = f"file://{output_path}"
-    hdfs_output_path = "hdfs:///user/richard/traffic_data_partitioned"
-
-    print(f"\nOutput locations:")
-    #print(f"  Local: {output_path}/")
-    print(f"  HDFS: {hdfs_output_path}")
-
-    # # Save to local filesystem first
-    # print(f"\n[1/2] Saving to LOCAL filesystem...")
-    # print("Using Snappy compression for faster I/O...")
-    # print("Merging files per date (one CSV per date)...")
-
-    # # Repartition to 1 partition per date, then partition by date
-    # merged_df.repartition(1, "date") \
-    #     .write.mode("append") \
-    #     .option("compression", "snappy") \
-    #     .partitionBy("date") \
-    #     .csv(local_output_path, header=True)
-    # print(f"✓ Local filesystem: Data saved (Snappy compressed, 1 file per date)")
-
-    # # Get local size
-    # import subprocess
-    # try:
-    #     result = subprocess.run(['du', '-sh', local_output_path.replace("file://", "")],
-    #                           capture_output=True, text=True)
-    #     if result.returncode == 0:
-    #         size = result.stdout.split()[0]
-    #         print(f"  Local size: {size}")
-    # except:
-    #     pass
-
-    # Save to HDFS
-    print(f"\n[2/2] Saving to HDFS...")
-    print(f"Writing to {hdfs_output_path}...")
-
-    # Use the same data, repartition and save to HDFS
-    merged_df.repartition(1, "date") \
-        .write.mode("append") \
-        .option("compression", "snappy") \
-        .partitionBy("date") \
-        .csv(hdfs_output_path, header=True)
-    print(f"✓ HDFS: Data saved (Snappy compressed, 1 file per date)")
-
-    # Get HDFS size
+    '''
+    estimsate 40 MB / day, the whole month is 40MB * 30 = 1200MB; divide to 128mb is 1200 /128 ~= 10; so the N_output_files = 10
+    actually total 800MB after compression, so 8 files is good enough
+    '''
+    N_OUTPUT_FILES = 8
+    logger.info(f"{'#'*40} Coalescing to {N_OUTPUT_FILES} output files.")
     try:
-        result = subprocess.run(['hdfs', 'dfs', '-du', '-s', '-h', hdfs_output_path],
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            size_line = result.stdout.strip()
-            if size_line:
-                size = size_line.split()[0]
-                print(f"  HDFS size: {size}")
-    except:
-        pass
-
-    # Print statistics
-    print("\n" + "="*80)
-    print("PROCESSING STATISTICS")
-    print("="*80)
-    record_count = merged_df.count()
-    print(f"Total records: {record_count:,}")
-    print(f"Unique detectors: {merged_df.select('detector_id').distinct().count()}")
-    print("\nDate range:")
+        merged_df.coalesce(N_OUTPUT_FILES)\
+        .write.mode("append")\
+            .option("compression","snappy")\
+                    .parquet(HDFS_OUTPUT_PATH)
+    except Exception as e:
+        logger.exception(f"{'#'*40} Error write dataframe to HDFS. {e}")
+        return
+    logger.info(f"{'#'*40} HDFS: Data saved (Parquet, Snappy compressed, {N_OUTPUT_FILES} files).")
+    
+    
+    logger.info(f"{'#'*40} Data processing completed successfully.")
+    logger.info(f"{'#'*40} Processing Statistics:")
+    logger.info(f"{'#'*80}")
+    merged_df.cache()
+    logger.info(f"{'#'*40} Total records processed: {merged_df.count():,} records")
+    logger.info(f"{'#'*40} Unique detectors: {merged_df.select('detector_id').distinct().count()}")
+    logger.info(f"{'#'*40} Date range: ")
     merged_df.select("date").distinct().orderBy("date").show()
-
-    # Stop Spark session
     spark.stop()
-
-    print("\n" + "="*80)
-    print("PROCESSING COMPLETED SUCCESSFULLY!")
-    print("="*80)
-    print("\nOutput saved to TWO locations:")
-    print(f"\n1. LOCAL FILESYSTEM:")
-    print(f"   Path: {base_dir}/traffic_data_partitioned/")
-    print(f"   - Snappy compressed (.snappy)")
-    print(f"   - ONE file per date (consolidated)")
-    print(f"   - Use: spark.read.csv('traffic_data_partitioned', header=True)")
-    print(f"\n2. HDFS:")
-    print(f"   Path: {hdfs_output_path}")
-    print(f"   - Snappy compressed (.snappy)")
-    print(f"   - ONE file per date (consolidated)")
-    print(f"   - Use: spark.read.csv('{hdfs_output_path}', header=True)")
-    print(f"   - View: hdfs dfs -ls {hdfs_output_path}")
-    print("\n" + "="*80)
-
+    logger.info(f"{'#'*40} Spark Session stopped.")
+    logger.info("PROCESSING COMPLETED SUCCESSFULLY!")
+    
+    
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         input_dir = sys.argv[1]
-        output_dir = sys.argv[2] if len(sys.argv) > 2 else None
-        main(dir=input_dir, output_dir=output_dir)
+        geolocation = sys.argv[2] if len(sys.argv) > 2 else None
+        main(dir=input_dir, geoLocationPath=GEOLOCATION_PATH)
     else:
         main()

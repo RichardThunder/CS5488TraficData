@@ -147,7 +147,7 @@ class BaseAnalysisTest(ABC):
         """
         pass
 
-    def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append"):
+    # def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append"):
         """
         Save timing results to HDFS as a Parquet file.
 

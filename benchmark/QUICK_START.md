@@ -31,7 +31,7 @@ spark = SparkSession.builder.appName("SingleTest").getOrCreate()
 test = SparkBusyRoadTest(
     name="PySpark-BusyRoad",
     dataset_size="1_month_202508",
-    data_paths=['hdfs:///traffic_data_partitioned/202508'],
+    data_path=['hdfs:///traffic_data_partitioned/202508'],
     spark=spark,
     data_size_bytes=1073741824,
     total_records=500000
@@ -104,7 +104,7 @@ class MyCustomTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data."""
-        return self.spark.read.parquet(*self.data_paths)
+        return self.spark.read.parquet(*self.data_path)
 
     def clean_data(self, data: DataFrame) -> DataFrame:
         """Clean data."""

@@ -93,7 +93,7 @@ class SparkAverageSpeedTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data from Parquet files."""
-        return self.spark.read.parquet(*self.data_paths)
+        return self.spark.read.parquet(*self.data_path)
 
     def clean_data(self, data: DataFrame) -> DataFrame:
         """Remove invalid records."""
@@ -148,7 +148,7 @@ spark = SparkSession.builder.appName("Test").getOrCreate()
 test = SparkBusyRoadTest(
     name="PySpark-BusyRoad",
     dataset_size="1_month",
-    data_paths=['hdfs:///traffic_data_partitioned/202508'],
+    data_path=['hdfs:///traffic_data_partitioned/202508'],
     spark=spark,
     data_size_bytes=1000000,
     total_records=500000

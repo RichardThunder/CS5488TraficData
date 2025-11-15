@@ -122,7 +122,7 @@ def analyze_congestion_pyspark(df: DataFrame, start_hour: int, end_hour: int,
     return result
 
 def benchmark_pyspark_congestion(spark: SparkSession, dataset_size: str,
-                                  data_paths: List[str]) -> float:
+                                  data_path: List[str]) -> float:
     """
     Run PySpark congestion analysis benchmark
     """
@@ -134,7 +134,7 @@ def benchmark_pyspark_congestion(spark: SparkSession, dataset_size: str,
 
     # Read data
     read_start = time.time()
-    df = spark.read.parquet(*data_paths)
+    df = spark.read.parquet(*data_path)
     read_time = time.time() - read_start
 
     # Clean null values - drop records where Road_EN is null
@@ -147,7 +147,7 @@ def benchmark_pyspark_congestion(spark: SparkSession, dataset_size: str,
     df.persist(StorageLevel.MEMORY_AND_DISK)
     record_count = df.count()
     cache_time = time.time() - cache_start
-    record_timing(dataset_size, "PySpark", "Data Read", read_time, 0, f"from {len(data_paths)} path(s)")
+    record_timing(dataset_size, "PySpark", "Data Read", read_time, 0, f"from {len(data_path)} path(s)")
     record_timing(dataset_size, "PySpark", "Clean Nulls", clean_time, record_count)
     record_timing(dataset_size, "PySpark", "Cache & Count", cache_time, record_count)
 
@@ -180,7 +180,7 @@ def benchmark_pyspark_congestion(spark: SparkSession, dataset_size: str,
     return total_time
 
 def benchmark_hive_congestion(spark: SparkSession, dataset_size: str,
-                               data_paths: List[str]) -> float:
+                               data_path: List[str]) -> float:
     """
     Run Hive congestion analysis benchmark
     """
@@ -194,7 +194,7 @@ def benchmark_hive_congestion(spark: SparkSession, dataset_size: str,
     view_start = time.time()
 
     # Read and clean data
-    df_temp = spark.read.parquet(*data_paths)
+    df_temp = spark.read.parquet(*data_path)
     df_clean = df_temp.filter(col("Road_EN").isNotNull())
     df_clean.createOrReplaceTempView("traffic_data")
 
@@ -229,7 +229,7 @@ def benchmark_hive_congestion(spark: SparkSession, dataset_size: str,
     return total_time
 
 def benchmark_pandas_congestion(spark: SparkSession, dataset_size: str,
-                                 data_paths: List[str]) -> float:
+                                 data_path: List[str]) -> float:
     """
     Run Pandas congestion analysis benchmark (serial computation)
     """
@@ -241,7 +241,7 @@ def benchmark_pandas_congestion(spark: SparkSession, dataset_size: str,
 
     # Read data
     read_start = time.time()
-    df_spark = spark.read.parquet(*data_paths)
+    df_spark = spark.read.parquet(*data_path)
     read_time = time.time() - read_start
     record_timing(dataset_size, "Pandas", "Read Parquet (via Spark)", read_time, 0)
 
@@ -376,23 +376,23 @@ def main():
 
     try:
         # Run benchmarks for each dataset size
-        for dataset_name, data_paths in DATASETS.items():
+        for dataset_name, data_path in DATASETS.items():
             logger.info("\n" + "=" * 100)
-            logger.info(f"BENCHMARKING DATASET: {dataset_name} ({len(data_paths)} month(s))")
+            logger.info(f"BENCHMARKING DATASET: {dataset_name} ({len(data_path)} month(s))")
             logger.info("=" * 100)
 
             results = {}
 
             # PySpark benchmark
-            pyspark_time = benchmark_pyspark_congestion(spark, dataset_name, data_paths)
+            pyspark_time = benchmark_pyspark_congestion(spark, dataset_name, data_path)
             results['PySpark'] = pyspark_time
 
             # Hive benchmark
-            hive_time = benchmark_hive_congestion(spark, dataset_name, data_paths)
+            hive_time = benchmark_hive_congestion(spark, dataset_name, data_path)
             results['Hive'] = hive_time
 
             # Pandas benchmark
-            pandas_time = benchmark_pandas_congestion(spark, dataset_name, data_paths)
+            pandas_time = benchmark_pandas_congestion(spark, dataset_name, data_path)
             results['Pandas'] = pandas_time
 
             all_results[dataset_name] = results

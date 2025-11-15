@@ -17,7 +17,7 @@ Quick Start:
     test = SparkBusyRoadTest(
         name="PySpark",
         dataset_size="1_month",
-        data_paths=['hdfs:///data/202508'],
+        data_path=['hdfs:///data/202508'],
         spark=spark
     )
     result = test.run()

@@ -146,7 +146,7 @@ def example_1_single_test():
     # Create test instance
     test = SparkBusyRoadTest(
         name="PySpark-BusyRoad",
-        data_paths=['hdfs:///202508_subset_10pct'],
+        data_path=['hdfs:///202508_subset_10pct'],
         spark=spark,
     )
 
@@ -189,7 +189,7 @@ def example_2_multiple_tests():
 
     # Define test configuration
     dataset_config = {
-        'data_paths': ['hdfs:///traffic_data_partitioned/202508'],
+        'data_path': ['hdfs:///traffic_data_partitioned/202508'],
         'spark': spark,
     }
 
@@ -247,8 +247,8 @@ class CustomDataQualityTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data from Parquet files."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s)")
-        return self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {len(self.data_path)} path(s)")
+        return self.spark.read.parquet(*self.data_path)
 
     def clean_data(self, data: DataFrame) -> DataFrame:
         """For quality checks, we don't clean - we analyze as-is."""
@@ -316,7 +316,7 @@ def example_3_custom_test():
     # Create and run custom test
     test = CustomDataQualityTest(
         name="DataQuality",
-        data_paths=['hdfs:///traffic_data_partitioned/202508'],
+        data_path=['hdfs:///traffic_data_partitioned/202508'],
         spark=spark,
     )
 
@@ -360,7 +360,7 @@ def example_4_analyze_results():
     # Run a test
     test = SparkBusyRoadTest(
         name="PySpark-BusyRoad",
-        data_paths=['hdfs:///traffic_data_partitioned/202508'],
+        data_path=['hdfs:///traffic_data_partitioned/202508'],
         spark=spark,
     )
 

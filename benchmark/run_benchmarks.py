@@ -105,32 +105,32 @@ def initialize_spark() -> SparkSession:
         .getOrCreate()
 
 
-def get_hdfs_size_bytes(spark: SparkSession, data_paths: List[str]) -> int:
+def get_hdfs_size_bytes(spark: SparkSession, data_path: List[str]) -> int:
     """
     Get the total size of HDFS data paths in bytes.
 
     Args:
         spark: SparkSession instance
-        data_paths: List of HDFS paths
+        data_path: List of HDFS paths
 
     Returns:
         Total size in bytes
     """
-    if not data_paths:
+    if not data_path:
         return 0
 
     sc = spark.sparkContext
     conf = sc._jsc.hadoopConfiguration()
 
     try:
-        first_path_obj = sc._jvm.org.apache.hadoop.fs.Path(data_paths[0])
+        first_path_obj = sc._jvm.org.apache.hadoop.fs.Path(data_path[0])
         fs = first_path_obj.getFileSystem(conf)
     except Exception as e:
-        raise IOError(f"Failed to get FileSystem for path '{data_paths[0]}'. "
+        raise IOError(f"Failed to get FileSystem for path '{data_path[0]}'. "
                       f"Check HDFS configuration and connectivity. Original error: {e}")
 
     total_size = 0
-    for path_str in data_paths:
+    for path_str in data_path:
         path = sc._jvm.org.apache.hadoop.fs.Path(path_str)
         if fs.exists(path):
             total_size += fs.getContentSummary(path).getLength()
@@ -168,7 +168,7 @@ def export_timing_to_csv(all_timing_results: List[Dict[str, Any]],
 
 
 def run_test(test_class: Type[BaseAnalysisTest], test_name: str,
-             dataset_name: str, data_paths: List[str], spark: SparkSession,
+             dataset_name: str, data_path: List[str], spark: SparkSession,
              data_size_bytes: int, total_records: int) -> Dict[str, Any]:
     """
     Run a single test and return the results.
@@ -177,7 +177,7 @@ def run_test(test_class: Type[BaseAnalysisTest], test_name: str,
         test_class: Class of the test to run
         test_name: Friendly name for the test
         dataset_name: Name of the dataset
-        data_paths: Paths to the data
+        data_path: Paths to the data
         spark: SparkSession instance
         data_size_bytes: Size of the dataset in bytes
         total_records: Total number of records
@@ -190,7 +190,7 @@ def run_test(test_class: Type[BaseAnalysisTest], test_name: str,
         test = test_class(
             name=test_name,
             dataset_size=dataset_name,
-            data_paths=data_paths,
+            data_path=data_path,
             spark=spark,
             data_size_bytes=data_size_bytes,
             total_records=total_records
@@ -238,17 +238,17 @@ def main():
 
     try:
         # Iterate over each dataset
-        for dataset_name, data_paths in DATASETS.items():
+        for dataset_name, data_path in DATASETS.items():
             logger.info("\n" + "=" * 100)
-            logger.info(f"BENCHMARKING DATASET: {dataset_name} ({len(data_paths)} month(s))")
+            logger.info(f"BENCHMARKING DATASET: {dataset_name} ({len(data_path)} month(s))")
             logger.info("=" * 100)
 
             dataset_results = {}
 
             # Get dataset statistics
             try:
-                data_size_bytes = get_hdfs_size_bytes(spark, data_paths)
-                df_for_stats = spark.read.parquet(*data_paths)
+                data_size_bytes = get_hdfs_size_bytes(spark, data_path)
+                df_for_stats = spark.read.parquet(*data_path)
                 total_records = df_for_stats.count()
                 logger.info(f"Dataset: {dataset_name}")
                 logger.info(f"  Size: {data_size_bytes / (1024**3):.2f} GB")
@@ -259,7 +259,7 @@ def main():
                 total_records = 0
 
             # Run each test
-            num_months = len(data_paths)
+            num_months = len(data_path)
 
             for test_class, test_name, skip_large in TEST_CLASSES:
                 # Skip Pandas-based tests for large datasets if configured
@@ -276,7 +276,7 @@ def main():
                     test_class=test_class,
                     test_name=test_name,
                     dataset_name=dataset_name,
-                    data_paths=data_paths,
+                    data_path=data_path,
                     spark=spark,
                     data_size_bytes=data_size_bytes,
                     total_records=total_records

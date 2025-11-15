@@ -47,7 +47,7 @@ spark = SparkSession.builder.appName("Test").getOrCreate()
 # Create and run test
 test = SparkBusyRoadTest(
     name="PySpark-BusyRoad",
-    data_paths=['hdfs:///traffic_data_partitioned/202508'],
+    data_path=['hdfs:///traffic_data_partitioned/202508'],
     spark=spark
 )
 

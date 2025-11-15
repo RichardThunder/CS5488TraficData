@@ -54,3 +54,8 @@ nohup spark-submit \
     --packages com.databricks:spark-xml_2.12:0.17.0 \
     benchmark/example_usage.py >benchmark/test.out 2>&1 &
 ```
+
+```
+export PYSPARK_DRIVER_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
+export PYSPARK_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
+```

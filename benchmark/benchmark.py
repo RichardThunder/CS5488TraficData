@@ -88,8 +88,20 @@ def load_sql_query(filename: str) -> str:
 
 def get_hdfs_size_bytes(spark: SparkSession, data_paths: List[str]) -> int:
     """Get the total size of HDFS data paths in bytes."""
+    if not data_paths:
+        return 0
+
     sc = spark.sparkContext
-    fs = sc._jvm.org.apache.hadoop.fs.FileSystem.get(sc._jsc.hadoopConfiguration())
+    conf = sc._jsc.hadoopConfiguration()
+
+    # Get the FileSystem object from the first path. Assumes all paths use the same FS.
+    try:
+        first_path_obj = sc._jvm.org.apache.hadoop.fs.Path(data_paths[0])
+        fs = first_path_obj.getFileSystem(conf)
+    except Exception as e:
+        raise IOError(f"Failed to get FileSystem for path '{data_paths[0]}'. "
+                      f"Check HDFS configuration and connectivity. Original error: {e}")
+
     total_size = 0
     for path_str in data_paths:
         path = sc._jvm.org.apache.hadoop.fs.Path(path_str)
@@ -209,9 +221,13 @@ def benchmark_pyspark(spark: SparkSession, dataset_size: str, data_paths: List[s
     # Morning rush hour: 6:00 - 10:00
     morning_start = time.time()
     morning_results = topBusyRoads(df, 6, 10, "Morning")
-    morning_count = morning_results.count()
-    logger.info("\n--- TOP 10 BUSIEST ROADS (Morning 6:00-10:00) ---")
-    morning_results.show(truncate=False)
+    morning_count = 0
+    if morning_results is not None:
+        morning_count = morning_results.count()
+        logger.info("\n--- TOP 10 BUSIEST ROADS (Morning 6:00-10:00) ---")
+        morning_results.show(truncate=False)
+    else:
+        logger.warning("Morning analysis returned no results.")
     morning_time = time.time() - morning_start
     record_timing(dataset_size, "PySpark", "Morning Analysis", morning_time, morning_count, "6:00-10:00",
                   data_size_bytes=data_size_bytes, total_records=total_records)
@@ -219,9 +235,13 @@ def benchmark_pyspark(spark: SparkSession, dataset_size: str, data_paths: List[s
     # Evening rush hour: 17:00 - 21:00
     evening_start = time.time()
     evening_results = topBusyRoads(df, 17, 21, "Evening")
-    evening_count = evening_results.count()
-    logger.info("\n--- TOP 10 BUSIEST ROADS (Evening 17:00-21:00) ---")
-    evening_results.show(truncate=False)
+    evening_count = 0
+    if evening_results is not None:
+        evening_count = evening_results.count()
+        logger.info("\n--- TOP 10 BUSIEST ROADS (Evening 17:00-21:00) ---")
+        evening_results.show(truncate=False)
+    else:
+        logger.warning("Evening analysis returned no results.")
     evening_time = time.time() - evening_start
     record_timing(dataset_size, "PySpark", "Evening Analysis", evening_time, evening_count, "17:00-21:00",
                   data_size_bytes=data_size_bytes, total_records=total_records)

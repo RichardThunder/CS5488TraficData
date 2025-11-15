@@ -39,7 +39,6 @@ class SparkBusyRoadTest(BaseAnalysisTest):
         # Cache the cleaned data
         cleaned_df.persist(StorageLevel.MEMORY_AND_DISK)
         record_count = cleaned_df.count()
-        self.total_records = record_count
         logger.info(f"Data cleaned and cached. Records: {record_count:,}")
 
         return cleaned_df
@@ -142,7 +141,6 @@ class HiveBusyRoadTest(BaseAnalysisTest):
         logger.info("Cleaning data and creating temporary Hive view")
         cleaned_df = data.filter(col("Road_EN").isNotNull())
         cleaned_df.createOrReplaceTempView("traffic_data")
-        self.total_records = cleaned_df.count()
         logger.info("Created temporary Hive view: traffic_data")
         return cleaned_df
 
@@ -215,7 +213,6 @@ class PandasBusyRoadTest(BaseAnalysisTest):
         logger.info("Converting to Pandas DataFrame")
         df_pandas = cleaned_spark.toPandas()
         record_count = len(df_pandas)
-        self.total_records = record_count
         logger.info(f"Converted to Pandas. Records: {record_count:,}")
 
         # Preprocess: extract hour from period_from
@@ -311,7 +308,6 @@ class SparkCongestionTest(BaseAnalysisTest):
 
         cleaned_df.persist(StorageLevel.MEMORY_AND_DISK)
         record_count = cleaned_df.count()
-        self.total_records = record_count
         logger.info(f"Data cleaned and cached. Records: {record_count:,}")
 
         return cleaned_df
@@ -384,7 +380,6 @@ class HiveCongestionTest(BaseAnalysisTest):
             col("volume").isNotNull()
         )
         cleaned_df.createOrReplaceTempView("traffic_data")
-        self.total_records = cleaned_df.count()
         logger.info("Created temporary Hive view: traffic_data")
         return cleaned_df
 
@@ -452,7 +447,6 @@ class PandasCongestionTest(BaseAnalysisTest):
         logger.info("Converting to Pandas DataFrame")
         df_pandas = cleaned_spark.toPandas()
         logger.info(f"Converted to Pandas. Records: {len(df_pandas):,}")
-        self.total_records = len(df_pandas)
         return df_pandas
 
     def execute_analysis(self, data: pd.DataFrame) -> Dict[str, Any]:

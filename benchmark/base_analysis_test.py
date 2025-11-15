@@ -5,6 +5,7 @@ import time
 import logging
 from datetime import datetime
 from pyspark.sql import SparkSession, DataFrame
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +78,7 @@ class BaseAnalysisTest(ABC):
         Returns:
             The records number as int.
         """
-        
-        self.total_records = df.count()
-        return self.total_records
+        return df.count()
     
     @abstractmethod
     def initialize(self) -> None:
@@ -184,13 +183,13 @@ class BaseAnalysisTest(ABC):
             logger.error(f"Failed to save timing results to HDFS: {e}", exc_info=True)
             raise
 
-    def save_timing_results_to_csv_hdfs(self, hdfs_path: str, mode: str = "append") -> str:
+    def save_timing_results_to_csv_hdfs(self, hdfs_path: str) -> str:
         """
-        Save timing results to HDFS as a CSV file.
+        Save timing results to HDFS as a CSV file, always appending to the destination.
+        Each save operation will create a new single part-file in the target directory.
 
         Args:
-            hdfs_path: HDFS path where to save the results (e.g., "hdfs:///benchmark_results/timing.csv")
-            mode: Save mode - "append" (default), "overwrite", or "error"
+            hdfs_path: HDFS directory path where to save the results (e.g., "hdfs:///benchmark_results/timing_csv")
 
         Returns:
             The HDFS path where results were saved
@@ -210,15 +209,15 @@ class BaseAnalysisTest(ABC):
             # Convert timing results to Spark DataFrame
             df = self.spark.createDataFrame(self.timing_results)
 
-            # Save to HDFS as CSV
-            logger.info(f"Saving {len(self.timing_results)} timing records to HDFS CSV: {hdfs_path}")
-            df.coalesce(1).write.mode(mode).option("header", "true").csv(hdfs_path)
+            # Save to HDFS as parquet, always appending. coalesce(1) ensures a single file per run.
+            logger.info(f"Appending {len(self.timing_results)} timing records to HDFS parquet directory: {hdfs_path}")
+            df.write.mode("append").parquet(hdfs_path)
 
-            logger.info(f"Successfully saved timing results to {hdfs_path}")
+            logger.info(f"Successfully appended timing results to {hdfs_path}")
             return hdfs_path
 
         except Exception as e:
-            logger.error(f"Failed to save timing results to HDFS CSV: {e}", exc_info=True)
+            logger.error(f"Failed to save timing results to HDFS parquet: {e}", exc_info=True)
             raise
 
     def run(self) -> Dict[str, Any]:
@@ -251,7 +250,10 @@ class BaseAnalysisTest(ABC):
         try:
             # Phase 1: Initialize
             init_start = time.time()
-            self.initialize()
+            if self.spark is not None:
+                logger.info("Using provided SparkSession")
+            else:
+                self.initialize()
             init_time = time.time() - init_start
             self.record_timing("Initialize", init_time, 0, "test environment setup")
 
@@ -268,13 +270,15 @@ class BaseAnalysisTest(ABC):
             clean_time = time.time() - clean_start
             self.record_timing("Clean Data", clean_time, 0, "data cleaning")
             # Phase 3.5: Get total records after cleaning
-            self.get_total_record(self.cleaned_data)
+            self.total_records = self.get_total_record(self.cleaned_data)
+            
 
             # Phase 4: Execute analysis
             analysis_start = time.time()
             self.analysis_results = self.execute_analysis(self.cleaned_data)
             analysis_time = time.time() - analysis_start
             self.record_timing("Execute Analysis", analysis_time, 0, "main analysis")
+
 
             # Phase 5: Cleanup
             cleanup_start = time.time()
@@ -284,8 +288,8 @@ class BaseAnalysisTest(ABC):
                 self.record_timing("Cleanup", cleanup_time, 0, "resource cleanup")
             #phase 6: save results
 
-            self.save_timing_results_to_hdfs(hdfs_path="hdfs:///benchmark_results/timing")
-            self.save_timing_results_to_csv_hdfs(hdfs_path="hdfs:///benchmark_results/timing_csv")
+            
+            self.save_timing_results_to_csv_hdfs(hdfs_path="hdfs:///benchmark_results/timing")
 
         except Exception as e:
             success = False

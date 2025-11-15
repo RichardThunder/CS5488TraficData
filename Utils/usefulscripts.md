@@ -44,18 +44,31 @@ hdfs dfsadmin -safemode leave
 
 ```shell
 # run test
-nohup spark-submit \
-    --master yarn \
+export PYSPARK_DRIVER_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
+export PYSPARK_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
+nohup spark-submit --master yarn \
     --deploy-mode client \
     --driver-memory 4g \
-    --executor-memory 3g \
-    --executor-cores 3 \
-    --num-executors  5\
-    --packages com.databricks:spark-xml_2.12:0.17.0 \
+    --executor-memory 8g \
+    --executor-cores 2 \
+    --num-executors  2\
     benchmark/example_usage.py >benchmark/test.out 2>&1 &
 ```
 
-```
+```shell
+# run test
 export PYSPARK_DRIVER_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
 export PYSPARK_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
+nohup spark-submit --master "local[4]" \
+    --driver-memory 4g \
+    --executor-memory 8g \
+    --executor-cores 2 \
+    --num-executors  2\
+    benchmark/example_usage.py >benchmark/test.out 2>&1 &
 ```
+
+```shell
+hdfs dfs -get /benchmark_results/timing benchmark/
+python Utils/show_csv.py 
+```
+

@@ -26,17 +26,6 @@ This document outlines comprehensive analysis opportunities for a full year of H
 - **Temporal Coverage**: Verify continuous data collection across all 365 days
 - **Spatial Coverage**: Check if all detectors report consistently
 
-**PySpark Example**:
-```python
-# Data validity rate
-df.groupBy('valid').count().show()
-
-# Missing/null patterns
-df.select([count(when(col(c).isNull(), c)).alias(c) for c in df.columns]).show()
-
-# Filter valid data only
-clean_df = df.filter(col('valid') == 'Y')
-```
 
 ### 1.2 Descriptive Statistics
 **Objective**: Understand overall traffic characteristics

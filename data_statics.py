@@ -4,7 +4,7 @@ import os
 import logging
 from typing import Optional
 
-dir_path = "hdfs://hadoop-namenode:9000/traffic_data_partitioned/202410"
+dir_path = "hdfs://hadoop-namenode:9000/traffic_data_partitioned/202506"
 
 
 logging.basicConfig(
@@ -31,8 +31,7 @@ def main():
     df.show(10,truncate=False)
     df.printSchema()
 
-    morning_df = df.filter(col("period_from") >= to_timestamp(lit("2024-10-22 07:00:00")) & col("period_to") <= to_timestamp(lit("2024-10-22 09:00:00"))) \
-        .groupBy()
+    #morning_df = df.filter(col("period_from") >= to_timestamp(lit("2024-10-22 07:00:00")) & col("period_to") <= to_timestamp(lit("2024-10-22 09:00:00"))).groupBy()
         
     
 

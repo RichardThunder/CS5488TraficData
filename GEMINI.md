@@ -33,3 +33,8 @@ hadoop-datanode1,2,3 run on vm 15gb 8cores
 
 to connect hadoop-namenode: ssh hadoop@hadoop-namenode
 
+## attention
+
+do not read dataset/, the number of files is too large.
+
+

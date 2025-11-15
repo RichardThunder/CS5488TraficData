@@ -23,16 +23,6 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Example 1: Running a Single Test Manually
 # ============================================================================
-def run_with_subset(subset_dir):
-    spark = SparkSession.builder \
-        .appName("Example - Subset") \
-        .enableHiveSupport() \
-        .getOrCreate()
-    
-    test = SparkBusyRoadTest("name=PySpark-BusyRoad-Subset",
-                             data_paths=[subset_dir],
-                             spark=spark)
-
 
 def example_1_single_test():
     """Run a single test manually with full control."""
@@ -49,7 +39,7 @@ def example_1_single_test():
     # Create test instance
     test = SparkBusyRoadTest(
         name="PySpark-BusyRoad",
-        data_paths=['hdfs:///traffic_data_partitioned/202508'],
+        data_paths=['hdfs:///202508_subset_10pct'],
         spark=spark,
     )
 
@@ -315,7 +305,7 @@ def main():
     # Uncomment the examples you want to run
     # WARNING: These will attempt to connect to HDFS and run Spark jobs
 
-    # example_1_single_test()
+    example_1_single_test()
     # example_2_multiple_tests()
     # example_3_custom_test()
     # example_4_analyze_results()

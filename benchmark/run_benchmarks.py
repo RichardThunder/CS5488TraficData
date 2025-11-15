@@ -58,6 +58,11 @@ DATASETS = {
 # Skip Pandas for datasets larger than this threshold (to avoid OOM)
 PANDAS_SKIP_THRESHOLD = 2  # Skip Pandas if dataset has more than 2 months
 
+# HDFS output path for timing results
+HDFS_TIMING_OUTPUT = "hdfs:///benchmark_results/timing"  # Parquet format
+HDFS_TIMING_CSV_OUTPUT = "hdfs:///benchmark_results/timing_csv"  # CSV format
+SAVE_TO_HDFS = True  # Set to True to automatically save results to HDFS
+
 # Test classes to run
 # Format: (TestClass, "friendly_name", skip_for_large_datasets)
 TEST_CLASSES: List[tuple[Type[BaseAnalysisTest], str, bool]] = [

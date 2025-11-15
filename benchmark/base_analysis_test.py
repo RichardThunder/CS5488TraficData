@@ -148,6 +148,80 @@ class BaseAnalysisTest(ABC):
         """
         pass
 
+    def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append") -> str:
+        """
+        Save timing results to HDFS as a Parquet file.
+
+        Args:
+            hdfs_path: HDFS path where to save the results (e.g., "hdfs:///benchmark_results/timing")
+            mode: Save mode - "append" (default), "overwrite", or "error"
+
+        Returns:
+            The HDFS path where results were saved
+
+        Raises:
+            ValueError: If SparkSession is not available
+            Exception: If saving to HDFS fails
+        """
+        if self.spark is None:
+            raise ValueError("SparkSession is required to save results to HDFS")
+
+        if not self.timing_results:
+            logger.warning("No timing results to save")
+            return hdfs_path
+
+        try:
+            # Convert timing results to Spark DataFrame
+            df = self.spark.createDataFrame(self.timing_results)
+
+            # Save to HDFS as Parquet
+            logger.info(f"Saving {len(self.timing_results)} timing records to HDFS: {hdfs_path}")
+            df.write.mode(mode).parquet(hdfs_path)
+
+            logger.info(f"Successfully saved timing results to {hdfs_path}")
+            return hdfs_path
+
+        except Exception as e:
+            logger.error(f"Failed to save timing results to HDFS: {e}", exc_info=True)
+            raise
+
+    def save_timing_results_to_csv_hdfs(self, hdfs_path: str, mode: str = "append") -> str:
+        """
+        Save timing results to HDFS as a CSV file.
+
+        Args:
+            hdfs_path: HDFS path where to save the results (e.g., "hdfs:///benchmark_results/timing.csv")
+            mode: Save mode - "append" (default), "overwrite", or "error"
+
+        Returns:
+            The HDFS path where results were saved
+
+        Raises:
+            ValueError: If SparkSession is not available
+            Exception: If saving to HDFS fails
+        """
+        if self.spark is None:
+            raise ValueError("SparkSession is required to save results to HDFS")
+
+        if not self.timing_results:
+            logger.warning("No timing results to save")
+            return hdfs_path
+
+        try:
+            # Convert timing results to Spark DataFrame
+            df = self.spark.createDataFrame(self.timing_results)
+
+            # Save to HDFS as CSV
+            logger.info(f"Saving {len(self.timing_results)} timing records to HDFS CSV: {hdfs_path}")
+            df.coalesce(1).write.mode(mode).option("header", "true").csv(hdfs_path)
+
+            logger.info(f"Successfully saved timing results to {hdfs_path}")
+            return hdfs_path
+
+        except Exception as e:
+            logger.error(f"Failed to save timing results to HDFS CSV: {e}", exc_info=True)
+            raise
+
     def run(self) -> Dict[str, Any]:
         """
         Template method that runs the entire benchmark test.

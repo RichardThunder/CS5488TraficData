@@ -9,10 +9,16 @@ This file demonstrates different ways to use the benchmark framework:
 4. Accessing and analyzing results
 """
 
+import sys
+import os
+
+# Add parent directory to path for imports when running with spark-submit
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from pyspark.sql import SparkSession, DataFrame
 from benchmark.base_analysis_test import BaseAnalysisTest
-from benchmark.concrete_tests import SparkBusyRoadTest, HiveBusyRoadTest
-from pyspark.sql.functions import col, count
+from benchmark.concrete_tests import SparkBusyRoadTest, HiveBusyRoadTest, PandasBusyRoadTest
+from pyspark.sql.functions import col
 from typing import Dict, Any
 import logging
 
@@ -23,6 +29,107 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Example 1: Running a Single Test Manually
 # ============================================================================
+def example_sparkBusyRoadTest(testName:str, datasetPath: dir):
+    # Initialize Spark
+    spark = SparkSession.builder \
+        .appName(f"TEST: {testName}") \
+        .enableHiveSupport() \
+        .getOrCreate()
+
+    # Create test instance
+    test = SparkBusyRoadTest(
+        name="PySpark-BusyRoad",
+        data_path=datasetPath,
+        spark=spark,
+    )
+
+    # Run the test
+    result = test.run()
+
+    # Access results
+    print(f"\nTest completed successfully: {result['success']}")
+    print(f"Total execution time: {result['total_time']:.2f} seconds")
+
+    if result['success']:
+        print("\nPhase-by-phase timing:")
+        for timing in result['timing_results']:
+            print(f"  {timing['phase']:20s}: {timing['duration_seconds']:6.3f}s - {timing['details']}")
+
+        print("\nAnalysis results:")
+        print(f"  Morning rush hour: {result['analysis_results']['morning']['count']} roads")
+        print(f"  Evening rush hour: {result['analysis_results']['evening']['count']} roads")
+    else:
+        print(f"Test failed with error: {result['error']}")
+
+    spark.stop()
+
+def example_HiveBusyRoadTest(testName:str, datasetPath: dir):
+    # Initialize Spark
+    spark = SparkSession.builder \
+        .appName(f"TEST: {testName}") \
+        .enableHiveSupport() \
+        .getOrCreate()
+
+    # Create test instance
+    test = HiveBusyRoadTest(
+        name="Hive-BusyRoad",
+        data_path=datasetPath,
+        spark=spark,
+    )
+
+    # Run the test
+    result = test.run()
+
+    # Access results
+    print(f"\nTest completed successfully: {result['success']}")
+    print(f"Total execution time: {result['total_time']:.2f} seconds")
+
+    if result['success']:
+        print("\nPhase-by-phase timing:")
+        for timing in result['timing_results']:
+            print(f"  {timing['phase']:20s}: {timing['duration_seconds']:6.3f}s - {timing['details']}")
+
+        print("\nAnalysis results:")
+        print(f"  Morning rush hour: {result['analysis_results']['morning']['count']} roads")
+        print(f"  Evening rush hour: {result['analysis_results']['evening']['count']} roads")
+    else:
+        print(f"Test failed with error: {result['error']}")
+
+    spark.stop()
+
+def example_PandasBusyRoadTest(testName:str, datasetPath: dir):
+    # Initialize Spark
+    spark = SparkSession.builder \
+        .appName(f"TEST: {testName}") \
+        .enableHiveSupport() \
+        .getOrCreate()
+
+    # Create test instance
+    test = PandasBusyRoadTest(
+        name="Pandas-BusyRoad",
+        data_path=datasetPath,
+        spark=spark,
+    )
+
+    # Run the test
+    result = test.run()
+
+    # Access results
+    print(f"\nTest completed successfully: {result['success']}")
+    print(f"Total execution time: {result['total_time']:.2f} seconds")
+
+    if result['success']:
+        print("\nPhase-by-phase timing:")
+        for timing in result['timing_results']:
+            print(f"  {timing['phase']:20s}: {timing['duration_seconds']:6.3f}s - {timing['details']}")
+
+        print("\nAnalysis results:")
+        print(f"  Morning rush hour: {result['analysis_results']['morning']['count']} roads")
+        print(f"  Evening rush hour: {result['analysis_results']['evening']['count']} roads")
+    else:
+        print(f"Test failed with error: {result['error']}")
+
+    spark.stop()
 
 def example_1_single_test():
     """Run a single test manually with full control."""
@@ -176,6 +283,7 @@ class CustomDataQualityTest(BaseAnalysisTest):
         distinct_districts = data.select("District").distinct().count()
 
         results = {
+            'total_records': total_count,
             'null_counts': null_counts,
             'distinct_roads': distinct_roads,
             'distinct_districts': distinct_districts
@@ -218,10 +326,13 @@ def example_3_custom_test():
     if result['success']:
         print("\nData Quality Metrics:")
         analysis = result['analysis_results']
+        total_records = analysis['total_records']
+        print(f"  Total Records: {total_records:,}")
         print(f"  Distinct Roads: {analysis['distinct_roads']:,}")
         print(f"  Distinct Districts: {analysis['distinct_districts']:,}")
         print("\n  Null Percentages:")
         for col_name, null_count in analysis['null_counts'].items():
+            pct = (null_count / total_records * 100) if total_records > 0 else 0
             print(f"    {col_name:15s}: {pct:5.2f}%")
 
     spark.stop()
@@ -304,20 +415,21 @@ def main():
 
     # Uncomment the examples you want to run
     # WARNING: These will attempt to connect to HDFS and run Spark jobs
-
-    example_1_single_test()
-    # example_2_multiple_tests()
-    # example_3_custom_test()
-    # example_4_analyze_results()
-
+    #run 3 times
+    for j in range(1,4):
+        print(f"\n" + "=" * 80)
+        print(f"RUNNING EXAMPLE LOOP {j}")
+        print("=" * 80)
+        for i in range(10,100,10):
+            datasetPath = f'hdfs:///202508_subset_{i}pct'
+            example_sparkBusyRoadTest(testName=f"SparkBusyRoadTest_{i}pct", datasetPath=datasetPath)
+            example_HiveBusyRoadTest(testName=f"HiveBusyRoadTest_{i}pct", datasetPath=datasetPath)
+            if i < 50:
+                example_PandasBusyRoadTest(testName=f"PandasBusyRoadTest_{i}pct", datasetPath=datasetPath)
     print("\n" + "=" * 80)
-    print("EXAMPLES COMPLETE")
+    print("Tests COMPLETE")
     print("=" * 80)
-    print("\nTo run examples:")
-    print("  1. Uncomment the example functions in main()")
-    print("  2. Ensure HDFS paths are correct")
-    print("  3. Run: python benchmark/example_usage.py")
-    print()
+
 
 
 if __name__ == "__main__":

@@ -21,21 +21,20 @@ class BaseAnalysisTest(ABC):
     collects timing information for each phase.
     """
 
-    def __init__(self, name: str, data_paths: List[str],
+    def __init__(self, name: str, data_path: str,
                  spark: Optional[SparkSession] = None):
         """
         Initialize the test.
 
         Args:
             name: Name of the test (e.g., "PySpark", "Hive", "Pandas")
-            dataset_size: Name of the dataset size (e.g., "1_month_202508")
-            data_paths: List of paths to the data files
+            data_path: path to the data files
             spark: SparkSession instance (optional, some tests may create their own)
             data_size_bytes: Size of the dataset in bytes
             total_records: Total number of records in the dataset
         """
         self.name = name
-        self.data_paths = data_paths
+        self.data_path = data_path
         self.spark = spark
         self.total_records = 0
 
@@ -67,7 +66,7 @@ class BaseAnalysisTest(ABC):
             'details': details
         }
         self.timing_results.append(result)
-        logger.info(f"[{self.dataset_size}][{self.name}] {phase}: {duration:.3f}s | Records: {records:,} | {details}")
+        logger.info(f"[{self.name}] {phase}: {duration:.3f}s | Records: {records:,} | {details}")
 
 
 
@@ -148,7 +147,7 @@ class BaseAnalysisTest(ABC):
         """
         pass
 
-    def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append") -> str:
+    def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append"):
         """
         Save timing results to HDFS as a Parquet file.
 
@@ -168,7 +167,7 @@ class BaseAnalysisTest(ABC):
 
         if not self.timing_results:
             logger.warning("No timing results to save")
-            return hdfs_path
+            
 
         try:
             # Convert timing results to Spark DataFrame
@@ -179,7 +178,7 @@ class BaseAnalysisTest(ABC):
             df.write.mode(mode).parquet(hdfs_path)
 
             logger.info(f"Successfully saved timing results to {hdfs_path}")
-            return hdfs_path
+            
 
         except Exception as e:
             logger.error(f"Failed to save timing results to HDFS: {e}", exc_info=True)
@@ -242,7 +241,7 @@ class BaseAnalysisTest(ABC):
                 - error: Error message if test failed (None otherwise)
         """
         logger.info("=" * 80)
-        logger.info(f"STARTING {self.name.upper()} TEST - Dataset: {self.dataset_size}")
+        logger.info(f"STARTING {self.name.upper()} TEST")
         logger.info("=" * 80)
 
         overall_start = time.time()
@@ -260,7 +259,7 @@ class BaseAnalysisTest(ABC):
             read_start = time.time()
             self.data = self.read_data()
             read_time = time.time() - read_start
-            self.record_timing("Read Data", read_time, 0, f"from {len(self.data_paths)} path(s)")
+            self.record_timing("Read Data", read_time, 0, f"from {self.data_path}")
 
 
             # Phase 3: Clean data
@@ -283,8 +282,10 @@ class BaseAnalysisTest(ABC):
             cleanup_time = time.time() - cleanup_start
             if cleanup_time > 0.001:  # Only record if cleanup took measurable time
                 self.record_timing("Cleanup", cleanup_time, 0, "resource cleanup")
+            #phase 6: save results
 
-            
+            self.save_timing_results_to_hdfs(hdfs_path="hdfs:///benchmark_results/timing")
+            self.save_timing_results_to_csv_hdfs(hdfs_path="hdfs:///benchmark_results/timing_csv")
 
         except Exception as e:
             success = False

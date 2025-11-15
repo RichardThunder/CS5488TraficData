@@ -27,8 +27,8 @@ class SparkBusyRoadTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data from Parquet files using Spark."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s)")
-        df = self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {self.data_paths}")
+        df = self.spark.read.parquet(self.data_paths)
         return df
 
     def clean_data(self, data: DataFrame) -> DataFrame:
@@ -132,8 +132,8 @@ class HiveBusyRoadTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data from Parquet files and create temp view."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s)")
-        df = self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {self.data_paths}")
+        df = self.spark.read.parquet(self.data_paths)
         return df
 
     def clean_data(self, data: DataFrame) -> DataFrame:
@@ -201,8 +201,8 @@ class PandasBusyRoadTest(BaseAnalysisTest):
 
     def read_data(self) -> pd.DataFrame:
         """Read data using Spark then convert to Pandas."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s) via Spark")
-        df_spark = self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {self.data_paths} via Spark")
+        df_spark = self.spark.read.parquet(self.data_paths)
         return df_spark
 
     def clean_data(self, data: DataFrame) -> pd.DataFrame:
@@ -293,8 +293,8 @@ class SparkCongestionTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data from Parquet files using Spark."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s)")
-        df = self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {self.data_paths}")
+        df = self.spark.read.parquet(self.data_paths)
         return df
 
     def clean_data(self, data: DataFrame) -> DataFrame:
@@ -367,8 +367,8 @@ class HiveCongestionTest(BaseAnalysisTest):
 
     def read_data(self) -> DataFrame:
         """Read data from Parquet files."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s)")
-        df = self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {self.data_paths}")
+        df = self.spark.read.parquet(self.data_paths)
         return df
 
     def clean_data(self, data: DataFrame) -> DataFrame:
@@ -431,8 +431,8 @@ class PandasCongestionTest(BaseAnalysisTest):
 
     def read_data(self) -> pd.DataFrame:
         """Read data using Spark then convert to Pandas."""
-        logger.info(f"Reading data from {len(self.data_paths)} path(s) via Spark")
-        df_spark = self.spark.read.parquet(*self.data_paths)
+        logger.info(f"Reading data from {self.data_paths} via Spark")
+        df_spark = self.spark.read.parquet(self.data_paths)
         return df_spark
 
     def clean_data(self, data: DataFrame) -> pd.DataFrame:

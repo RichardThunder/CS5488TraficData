@@ -7,12 +7,20 @@ and dataset sizes. It collects timing results and exports them to CSV for compar
 
 Usage:
     python run_benchmarks.py
+    OR
+    spark-submit --master yarn benchmark/run_benchmarks.py
 
 Configuration:
     - Modify DATASETS to change which datasets to test
     - Modify TEST_CLASSES to change which tests to run
     - Set PANDAS_SKIP_THRESHOLD to control when Pandas tests are skipped
 """
+
+import sys
+import os
+
+# Add parent directory to path for imports when running with spark-submit
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pyspark.sql import SparkSession
 from benchmark.concrete_tests import (

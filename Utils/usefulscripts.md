@@ -41,3 +41,16 @@ exit safe mode
 ```shell
 hdfs dfsadmin -safemode leave
 ```
+
+```shell
+# run test
+nohup spark-submit \
+    --master yarn \
+    --deploy-mode client \
+    --driver-memory 4g \
+    --executor-memory 3g \
+    --executor-cores 3 \
+    --num-executors  5\
+    --packages com.databricks:spark-xml_2.12:0.17.0 \
+    benchmark/example_usage.py >benchmark/test.out 2>&1 &
+```

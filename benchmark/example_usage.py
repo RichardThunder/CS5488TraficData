@@ -420,9 +420,9 @@ def main():
         print(f"\n" + "=" * 80)
         print(f"RUNNING EXAMPLE LOOP {j}")
         print("=" * 80)
-        example_sparkBusyRoadTest(testName=f"SparkBusyRoadTest_{10}pct", datasetPath="hdfs:///202508_subset_{10}pct")
-        example_HiveBusyRoadTest(testName=f"HiveBusyRoadTest_{10}pct", datasetPath="hdfs:///202508_subset_{10}pct")
-        example_HiveBusyRoadTest(testName=f"HiveBusyRoadTest_{10}pct", datasetPath="hdfs:///202508_subset_{10}pct")
+        example_sparkBusyRoadTest(testName=f"SparkBusyRoadTest_{10}pct", datasetPath=f"hdfs:///202508_subset_{10}pct")
+        example_HiveBusyRoadTest(testName=f"HiveBusyRoadTest_{10}pct", datasetPath=f"hdfs:///202508_subset_{10}pct")
+        example_HiveBusyRoadTest(testName=f"HiveBusyRoadTest_{10}pct", datasetPath=f"hdfs:///202508_subset_{10}pct")
         # for i in range(10,100,10):
         #     datasetPath = f'hdfs:///202508_subset_{i}pct'
         #     example_sparkBusyRoadTest(testName=f"SparkBusyRoadTest_{i}pct", datasetPath=datasetPath)

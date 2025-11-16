@@ -144,7 +144,7 @@ The framework uses the **Template Method** design pattern to provide a consisten
 
 ## Class Hierarchy
 
-```
+```shell
 BaseAnalysisTest (Abstract)
 │
 ├─ SparkBusyRoadTest
@@ -170,10 +170,6 @@ BaseAnalysisTest (Abstract)
 ├─ PandasCongestionTest
 │  └─ Uses: Pandas DataFrames
 │  └─ Analysis: High congestion roads (>50% occupancy)
-│
-└─ [Your Custom Test]
-   └─ Implement the 4 abstract methods
-   └─ Add to TEST_CLASSES in run_benchmarks.py
 ```
 
 ## Data Flow

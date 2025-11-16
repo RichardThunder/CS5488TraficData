@@ -59,7 +59,7 @@ nohup spark-submit --master yarn \
 # run test
 export PYSPARK_DRIVER_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
 export PYSPARK_PYTHON=/home/richard/miniconda3/envs/BDA/bin/python
-nohup spark-submit --master "local[*]" \
+nohup spark-submit --master "local[4]" \
     --driver-memory 16g \
     --executor-memory 4g \
     --executor-cores 4 \

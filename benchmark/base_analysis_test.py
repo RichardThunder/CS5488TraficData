@@ -153,49 +153,9 @@ class BaseAnalysisTest(ABC):
         This is optional and can be overridden by concrete classes if needed.
         Default implementation does nothing.
         """
-        if self.timing_results:
-            logger.info(f"Saving {len(self.timing_results)} timing records to HDFS: {self.hdfs_path}")
-            try:
-                self.save_timing_results_to_csv_hdfs(self.hdfs_path)
-            except Exception as e:
-                logger.error(f"Failed to save timing results to HDFS during cleanup: {e}", exc_info=True)
+        # Timing results are now saved in the finally block of run() after total execution time is recorded
+        pass
 
-    #    def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append"):
-    #     """
-    #     Save timing results to HDFS as a Parquet file.
-
-    #     Args:
-    #         hdfs_path: HDFS path where to save the results (e.g., "hdfs:///benchmark_results/timing")
-    #         mode: Save mode - "append" (default), "overwrite", or "error"
-
-    #     Returns:
-    #         The HDFS path where results were saved
-
-    #     Raises:
-    #         ValueError: If SparkSession is not available
-    #         Exception: If saving to HDFS fails
-    #     """
-    #     if self.spark is None:
-    #         raise ValueError("SparkSession is required to save results to HDFS")
-
-    #     if not self.timing_results:
-    #         logger.warning("No timing results to save")
-            
-
-    #     try:
-    #         # Convert timing results to Spark DataFrame
-    #         df = self.spark.createDataFrame(self.timing_results)
-
-    #         # Save to HDFS as Parquet
-    #         logger.info(f"Saving {len(self.timing_results)} timing records to HDFS: {hdfs_path}")
-    #         df.write.mode(mode).parquet(hdfs_path)
-
-    #         logger.info(f"Successfully saved timing results to {hdfs_path}")
-            
-
-    #     except Exception as e:
-    #         logger.error(f"Failed to save timing results to HDFS: {e}", exc_info=True)
-    #         raise
 
     def save_timing_results_to_csv_hdfs(self, hdfs_path: str) -> str:
         """
@@ -273,37 +233,54 @@ class BaseAnalysisTest(ABC):
 
             # Phase 2: Read data
             read_start = time.time()
-            self.data = self.read_data()
-            read_time = time.time() - read_start
-            self.record_timing("Read Data", read_time, 0, f"from {self.data_path}")
-
+            try:
+                self.data = self.read_data()
+                read_time = time.time() - read_start
+                # Phase 3.5: Get total records after cleaning
+                self.total_records = self.get_total_record(self.data)
+                self.record_timing("Read Data", read_time, self.total_records, f"from {self.data_path}")
+            except Exception as read_error:
+                read_time = time.time() - read_start
+                self.record_timing("Read Data", read_time, self.total_records, f"FAILED: {str(read_error)}")
+                raise
 
             # Phase 3: Clean data
             clean_start = time.time()
-            self.cleaned_data = self.clean_data(self.data)
-            clean_time = time.time() - clean_start
-            self.record_timing("Clean Data", clean_time, 0, "data cleaning")
-            # Phase 3.5: Get total records after cleaning
-            self.total_records = self.get_total_record(self.cleaned_data)
+            try:
+                self.cleaned_data = self.clean_data(self.data)
+                clean_time = time.time() - clean_start
+                self.record_timing("Clean Data", clean_time, self.total_records, "data cleaning")
+                
+            except Exception as clean_error:
+                clean_time = time.time() - clean_start
+                self.record_timing("Clean Data", clean_time, self.total_records, f"FAILED: {str(clean_error)}")
+                raise
             
 
             # Phase 4: Execute analysis
             analysis_start = time.time()
-            self.analysis_results = self.execute_analysis(self.cleaned_data)
-            analysis_time = time.time() - analysis_start
-            self.record_timing("Execute Analysis", analysis_time, 0, "main analysis")
+            try:
+                self.analysis_results = self.execute_analysis(self.cleaned_data)
+                analysis_time = time.time() - analysis_start
+                self.record_timing("Execute Analysis", analysis_time, self.total_records, "main analysis")
+            except Exception as analysis_error:
+                analysis_time = time.time() - analysis_start
+                self.record_timing("Execute Analysis", analysis_time, self.total_records, f"FAILED: {str(analysis_error)}")
+                raise  # Re-raise the exception to be caught by outer except block
 
 
             # Phase 5: Cleanup
             cleanup_start = time.time()
-            self.cleanup()
-            cleanup_time = time.time() - cleanup_start
-            # Only record if cleanup took measurable time
-            self.record_timing("Cleanup", cleanup_time, 0, "resource cleanup")
-            #phase 6: save results
+            try:
+                self.cleanup()
+                cleanup_time = time.time() - cleanup_start
+                self.record_timing("Cleanup", cleanup_time, self.total_records, "resource cleanup")
+            except Exception as cleanup_error:
+                cleanup_time = time.time() - cleanup_start
+                self.record_timing("Cleanup", cleanup_time, self.total_records, f"FAILED: {str(cleanup_error)}")
+                raise
 
             
-            self.save_timing_results_to_csv_hdfs(hdfs_path=self.hdfs_path)
 
         except Exception as e:
             success = False
@@ -318,9 +295,15 @@ class BaseAnalysisTest(ABC):
 
         finally:
             total_time = time.time() - overall_start
-            self.record_timing("Total Execution", total_time, 0,
+            self.record_timing("Total Execution", total_time, self.total_records,
                              "SUCCESS" if success else f"FAILED: {error_msg}")
             logger.info(f"\n{self.name} total execution time: {total_time:.2f} seconds")
+
+            # Phase 6: Save results (after total execution time is recorded)
+            try:
+                self.save_timing_results_to_csv_hdfs(hdfs_path=self.hdfs_path)
+            except Exception as save_error:
+                logger.error(f"Failed to save timing results in finally block: {save_error}", exc_info=True)
 
         return {
             'total_time': total_time,

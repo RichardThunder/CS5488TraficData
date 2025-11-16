@@ -218,14 +218,22 @@ def main():
     print("BENCHMARK FRAMEWORK - EXAMPLE USAGE")
     print("=" * 80)
 
-    
+    # Ez test
+    # sparkSession = SparkSession.builder.appName(f"TEST").getOrCreate()
+    # example_sparkBusyRoadTest(testName=f"SparkBusyRoadTest_{10}pct", datasetPath=f'hdfs:///202508_subset_{10}pct',spark=sparkSession)
+    # sparkSession.stop()
+
+
+
     ##run 3 times
     for j in range(1,4):
         print(f"\n" + "=" * 80)
         print(f"RUNNING EXAMPLE LOOP {j}")
         print("=" * 80)
         for i in range(10,100,10):
-            sparkSession = SparkSession.builder.appName(f"TEST").enableHiveSupport().getOrCreate()
+            sparkSession = SparkSession.builder.appName(f"TEST") \
+                .config("spark.driver.maxResultSize", "4g") \
+                .enableHiveSupport().getOrCreate()
             datasetPath = f'hdfs:///202508_subset_{i}pct'
             example_sparkBusyRoadTest(testName=f"SparkBusyRoadTest_{i}pct", datasetPath=datasetPath,spark=sparkSession)
             example_HiveBusyRoadTest(testName=f"HiveBusyRoadTest_{i}pct", datasetPath=datasetPath,spark=sparkSession)

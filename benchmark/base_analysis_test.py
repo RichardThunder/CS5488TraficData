@@ -38,6 +38,8 @@ class BaseAnalysisTest(ABC):
         self.data_path = data_path
         self.spark = spark
         self.total_records = 0
+        self.uuid = str(uuid.uuid1())
+        self.hdfs_path = "hdfs:///benchmark_results/timing"
 
         # Storage for timing results
         self.timing_results: List[Dict[str, Any]] = []
@@ -64,21 +66,28 @@ class BaseAnalysisTest(ABC):
             'phase': phase,
             'duration_seconds': round(duration, 3),
             'records_processed': records,
-            'details': details
+            'details': details,
+            'uuid': self.uuid
         }
         self.timing_results.append(result)
         logger.info(f"[{self.name}] {phase}: {duration:.3f}s | Records: {records:,} | {details}")
 
 
 
-    def get_total_record(self, df:DataFrame) -> int:
+    def get_total_record(self, df: Any) -> int:
         """
-        Get the dataset frame.
+        Get the total number of records from either a Spark or Pandas DataFrame.
 
         Returns:
-            The records number as int.
+            The number of records as an int.
         """
-        return df.count()
+        if isinstance(df, DataFrame):  # Spark DataFrame
+            return df.count()
+        elif hasattr(df, 'shape'):  # Check for Pandas DataFrame
+            return df.shape[0]
+        
+        logger.warning(f"Unsupported data type for get_total_record: {type(df)}. Returning 0.")
+        return 0
     
     @abstractmethod
     def initialize(self) -> None:
@@ -144,44 +153,49 @@ class BaseAnalysisTest(ABC):
         This is optional and can be overridden by concrete classes if needed.
         Default implementation does nothing.
         """
-        pass
+        if self.timing_results:
+            logger.info(f"Saving {len(self.timing_results)} timing records to HDFS: {self.hdfs_path}")
+            try:
+                self.save_timing_results_to_csv_hdfs(self.hdfs_path)
+            except Exception as e:
+                logger.error(f"Failed to save timing results to HDFS during cleanup: {e}", exc_info=True)
 
-    # def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append"):
-        """
-        Save timing results to HDFS as a Parquet file.
+    #    def save_timing_results_to_hdfs(self, hdfs_path: str, mode: str = "append"):
+    #     """
+    #     Save timing results to HDFS as a Parquet file.
 
-        Args:
-            hdfs_path: HDFS path where to save the results (e.g., "hdfs:///benchmark_results/timing")
-            mode: Save mode - "append" (default), "overwrite", or "error"
+    #     Args:
+    #         hdfs_path: HDFS path where to save the results (e.g., "hdfs:///benchmark_results/timing")
+    #         mode: Save mode - "append" (default), "overwrite", or "error"
 
-        Returns:
-            The HDFS path where results were saved
+    #     Returns:
+    #         The HDFS path where results were saved
 
-        Raises:
-            ValueError: If SparkSession is not available
-            Exception: If saving to HDFS fails
-        """
-        if self.spark is None:
-            raise ValueError("SparkSession is required to save results to HDFS")
+    #     Raises:
+    #         ValueError: If SparkSession is not available
+    #         Exception: If saving to HDFS fails
+    #     """
+    #     if self.spark is None:
+    #         raise ValueError("SparkSession is required to save results to HDFS")
 
-        if not self.timing_results:
-            logger.warning("No timing results to save")
+    #     if not self.timing_results:
+    #         logger.warning("No timing results to save")
             
 
-        try:
-            # Convert timing results to Spark DataFrame
-            df = self.spark.createDataFrame(self.timing_results)
+    #     try:
+    #         # Convert timing results to Spark DataFrame
+    #         df = self.spark.createDataFrame(self.timing_results)
 
-            # Save to HDFS as Parquet
-            logger.info(f"Saving {len(self.timing_results)} timing records to HDFS: {hdfs_path}")
-            df.write.mode(mode).parquet(hdfs_path)
+    #         # Save to HDFS as Parquet
+    #         logger.info(f"Saving {len(self.timing_results)} timing records to HDFS: {hdfs_path}")
+    #         df.write.mode(mode).parquet(hdfs_path)
 
-            logger.info(f"Successfully saved timing results to {hdfs_path}")
+    #         logger.info(f"Successfully saved timing results to {hdfs_path}")
             
 
-        except Exception as e:
-            logger.error(f"Failed to save timing results to HDFS: {e}", exc_info=True)
-            raise
+    #     except Exception as e:
+    #         logger.error(f"Failed to save timing results to HDFS: {e}", exc_info=True)
+    #         raise
 
     def save_timing_results_to_csv_hdfs(self, hdfs_path: str) -> str:
         """
@@ -284,12 +298,12 @@ class BaseAnalysisTest(ABC):
             cleanup_start = time.time()
             self.cleanup()
             cleanup_time = time.time() - cleanup_start
-            if cleanup_time > 0.001:  # Only record if cleanup took measurable time
-                self.record_timing("Cleanup", cleanup_time, 0, "resource cleanup")
+            # Only record if cleanup took measurable time
+            self.record_timing("Cleanup", cleanup_time, 0, "resource cleanup")
             #phase 6: save results
 
             
-            self.save_timing_results_to_csv_hdfs(hdfs_path="hdfs:///benchmark_results/timing")
+            self.save_timing_results_to_csv_hdfs(hdfs_path=self.hdfs_path)
 
         except Exception as e:
             success = False

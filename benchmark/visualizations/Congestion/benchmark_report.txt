@@ -4,66 +4,79 @@ BENCHMARK ANALYSIS REPORT
 
 1. OVERVIEW
 --------------------------------------------------------------------------------
-Total test runs: 10
+Total test runs: 61
 Tools tested: Hive-Congestion, Pandas-Congestion, PySpark-Congestion
-Dataset sizes: [np.float64(10.0), np.float64(20.0), np.float64(30.0)]
+Dataset sizes: [np.float64(10.0), np.float64(20.0), np.float64(30.0), np.float64(40.0), np.float64(50.0), np.float64(60.0), np.float64(70.0), np.float64(80.0), np.float64(90.0)]
 Phases tracked: Clean Data, Cleanup, Execute Analysis, Initialize, Read Data, Total Execution
 
 2. OVERALL PERFORMANCE SUMMARY
 --------------------------------------------------------------------------------
 
 Hive-Congestion:
-  Average execution time: 3.73s
-  Min execution time: 2.99s
-  Max execution time: 4.48s
-  Total runs: 4
+  Average execution time: 9.42s
+  Min execution time: 2.83s
+  Max execution time: 15.83s
+  Total runs: 25
 
 Pandas-Congestion:
-  Average execution time: 110.43s
-  Min execution time: 110.43s
-  Max execution time: 110.43s
-  Total runs: 2
+  Average execution time: 53.59s
+  Min execution time: 27.37s
+  Max execution time: 79.78s
+  Total runs: 11
 
 PySpark-Congestion:
-  Average execution time: 18.40s
-  Min execution time: 12.85s
-  Max execution time: 23.96s
-  Total runs: 4
+  Average execution time: 56.02s
+  Min execution time: 12.40s
+  Max execution time: 98.44s
+  Total runs: 25
 
 3. FASTEST TOOL BY DATASET SIZE
 --------------------------------------------------------------------------------
-10% dataset: Hive-Congestion (2.99s)
-20% dataset: Hive-Congestion (4.48s)
+10% dataset: Hive-Congestion (2.83s)
+20% dataset: Hive-Congestion (4.38s)
+30% dataset: Hive-Congestion (6.18s)
+40% dataset: Hive-Congestion (8.08s)
+50% dataset: Hive-Congestion (9.50s)
+60% dataset: Hive-Congestion (11.06s)
+70% dataset: Hive-Congestion (12.64s)
+80% dataset: Hive-Congestion (14.32s)
+90% dataset: Hive-Congestion (15.83s)
 
 4. PHASE ANALYSIS (AVERAGE TIMES)
 --------------------------------------------------------------------------------
 
 Read Data:
-  Hive-Congestion: 0.073s (avg)
-  Pandas-Congestion: 0.072s (avg)
-  PySpark-Congestion: 0.069s (avg)
+  Hive-Congestion: 0.059s (avg)
+  Pandas-Congestion: 0.062s (avg)
+  PySpark-Congestion: 0.057s (avg)
 
 Clean Data:
-  Hive-Congestion: 0.014s (avg)
-  Pandas-Congestion: 107.257s (avg)
-  PySpark-Congestion: 14.911s (avg)
+  Hive-Congestion: 0.007s (avg)
+  Pandas-Congestion: 49.930s (avg)
+  PySpark-Congestion: 45.858s (avg)
 
 Execute Analysis:
-  Hive-Congestion: 3.515s (avg)
-  PySpark-Congestion: 3.288s (avg)
+  Hive-Congestion: 9.243s (avg)
+  Pandas-Congestion: 3.465s (avg)
+  PySpark-Congestion: 9.990s (avg)
 
 5. SCALABILITY INSIGHTS
 --------------------------------------------------------------------------------
 
 Hive-Congestion:
-  Dataset size increased: 2.0x
-  Execution time increased: 1.5x
-  Scaling efficiency: 1.34 (1.0 = perfect linear)
+  Dataset size increased: 9.0x
+  Execution time increased: 5.6x
+  Scaling efficiency: 1.61 (1.0 = perfect linear)
+
+Pandas-Congestion:
+  Dataset size increased: 3.0x
+  Execution time increased: 2.9x
+  Scaling efficiency: 1.03 (1.0 = perfect linear)
 
 PySpark-Congestion:
-  Dataset size increased: 2.0x
-  Execution time increased: 1.9x
-  Scaling efficiency: 1.07 (1.0 = perfect linear)
+  Dataset size increased: 9.0x
+  Execution time increased: 7.9x
+  Scaling efficiency: 1.13 (1.0 = perfect linear)
 
 6. RECOMMENDATIONS
 --------------------------------------------------------------------------------

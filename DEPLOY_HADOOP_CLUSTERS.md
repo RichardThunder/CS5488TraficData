@@ -1,410 +1,389 @@
-这是一个非常棒的项目！使用 KVM 和 Libvirt 搭建 Hadoop 集群可以让您深入了解虚拟化和Hadoop集群的底层工作原理。这比使用 Docker 更接近“裸金属”部署。
+# Hadoop and Spark Cluster Installation Guide on KVM/Libvirt
 
-这是一个复杂的过程，我们将其分解为几个关键阶段。我会先给您一个完整的路线图，然后详细说明第一阶段的步骤。
+This guide provides step-by-step instructions for deploying a Hadoop and Spark cluster using KVM/Libvirt. This approach offers deep insight into virtualization and cluster mechanics, simulating a near-bare-metal environment. The process is divided into several key stages.
 
-### 路线图：KVM/Libvirt 上的 Hadoop 集群
+### Roadmap
 
-1.  **阶段一：宿主机准备**
+1.  **Phase 1: Host Machine Preparation**
+    *   Check and enable virtualization support.
+    *   Install KVM, Libvirt, and necessary management tools (e.g., `virt-manager`).
+    *   Configure user permissions and the Libvirt service.
 
-      * 检查和启用虚拟化支持。
-      * 安装 KVM、Libvirt 和必要的管理工具（如 `virt-manager`）。
-      * 配置用户权限和 Libvirt 服务。
+2.  **Phase 2: Create a "Golden Image" VM**
+    *   Download a server OS (Ubuntu Server 22.04 recommended).
+    *   Create the first Virtual Machine (VM) to serve as a template.
+    *   Install common software on this VM: Java, `openssh-server`, etc.
+    *   Create a `hadoop` user.
 
-2.  **阶段二：创建“黄金镜像”虚拟机**
+3.  **Phase 3: Clone Virtual Machines**
+    *   Clone the "golden image" to create all required cluster nodes (e.g., 1 `hadoop-namenode`, 2 `hadoop-datanode`).
+    *   Configure a static IP address and hostname for each cloned VM.
+    *   Configure the `/etc/hosts` file on all VMs for hostname resolution.
 
-      * 下载一个服务器操作系统（推荐 Ubuntu Server 20.04/22.04 或 CentOS 7/Rocky Linux）。
-      * 创建第一个虚拟机（VM）作为模板。
-      * 在此VM上安装通用软件：Java (Hadoop 运行必备)、`openssh-server` 等。
-      * 创建 `hadoop` 用户。
+4.  **Phase 4: Hadoop Installation & Configuration**
+    *   Download and extract Hadoop on all nodes.
+    *   Configure passwordless SSH from the NameNode to all other nodes.
+    *   Edit the core Hadoop configuration files (`core-site.xml`, `hdfs-site.xml`, `mapred-site.xml`, `yarn-site.xml`, `workers`).
 
-3.  **阶段三：克隆虚拟机**
+5.  **Phase 5: Startup & Testing**
+    *   Format HDFS on the NameNode.
+    *   Start HDFS and YARN services.
+    *   Verify that all processes are running correctly.
+    *   Run a sample MapReduce job to validate the cluster.
 
-      * 使用“黄金镜像”克隆出集群所需的所有节点（例如：1个 `hadoop-namenode`，2个 `hadoop-datanode`）。
-      * 为每个克隆的VM配置**静态IP地址**和**主机名**。
-      * 在所有VM上配置 `/etc/hosts` 文件，以便它们可以通过主机名相互通信。
+6.  **Phase 6: Install Spark and Integrate with YARN**
+    *   Download and extract Spark on all nodes.
+    *   Configure Spark to run on YARN.
+    *   Run a sample Spark job to validate the integration.
 
-4.  **阶段四：Hadoop 安装与配置**
+---
 
-      * 在所有节点上下载并解压 Hadoop。
-      * 在 NameNode 上配置**无密码SSH**，使其可以控制所有 DataNode。
-      * 编辑 Hadoop 核心配置文件（`core-site.xml`, `hdfs-site.xml`, `mapred-site.xml`, `yarn-site.xml`, `workers`）。
+### Phase 1: Host Machine Preparation (Detailed Steps)
 
-5.  **阶段五：启动与测试**
+First, ensure your physical machine (the host) is ready to run KVM. These instructions assume the host is running a Debian/Ubuntu-based Linux distribution.
 
-      * 在 NameNode 上**格式化 HDFS**。
-      * 启动 HDFS 和 YARN 服务。
-      * 使用 `jps` 命令检查所有Java进程是否正常运行。
-      * 运行一个示例 MapReduce 任务（如 WordCount）来验证集群。
+#### 1. Check for Virtualization Support
 
------
-
-### 阶段一：宿主机准备（详细步骤）
-
-我们首先确保您的物理机（宿主机）已准备好运行 KVM。我将假设您的宿主机运行的是基于 Debian/Ubuntu 的 Linux 系统。
-
-#### 1\. 检查虚拟化支持
-
-您的 CPU 必须支持硬件虚拟化（Intel VT-x 或 AMD-V）。
+Your CPU must support hardware virtualization (Intel VT-x or AMD-V).
 
 ```bash
-# 检查CPU是否支持虚拟化。如果输出大于 0，则表示支持。
+# Check if the CPU supports virtualization. Output > 0 means it's supported.
 egrep -c '(vmx|svm)' /proc/cpuinfo
 
-# 确保 KVM 模块已加载
+# Ensure the KVM module is loaded
 lsmod | grep kvm
 ```
 
-如果 `egrep` 命令输出为 0，您可能需要在 BIOS/UEFI 中启用虚拟化。
+If the `egrep` command outputs 0, you may need to enable virtualization in your BIOS/UEFI settings.
 
-#### 2\. 安装 KVM 和 Libvirt
+#### 2. Install KVM and Libvirt
 
-我们将安装 KVM（虚拟机监视器）、Libvirt（管理API）和 `virt-manager`（一个非常有用的图形化管理工具）。
+Install KVM (the hypervisor), Libvirt (the management API), and `virt-manager` (a useful graphical management tool).
 
 ```bash
-# 更新软件包列表
+# Update package lists
 sudo apt update
 
-# 安装所有必要的软件包
+# Install all necessary packages
 sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager
 ```
 
-  * `qemu-kvm`: 核心的虚拟机监视器。
-  * `libvirt-daemon-system`: Libvirt 服务。
-  * `libvirt-clients`: 包含 `virsh` 等命令行工具。
-  * `bridge-utils`: 用于创建和管理网络桥接（对高级网络有用）。
-  * `virt-manager`: (可选但强烈推荐) 一个GUI工具，用于创建、管理和监控VM。
+*   `qemu-kvm`: The core hypervisor.
+*   `libvirt-daemon-system`: The Libvirt service.
+*   `libvirt-clients`: Includes command-line tools like `virsh`.
+*   `bridge-utils`: For creating and managing network bridges (useful for advanced networking).
+*   `virt-manager`: (Optional but highly recommended) A GUI tool for creating, managing, and monitoring VMs.
 
-#### 3\. 配置用户权限
+#### 3. Configure User Permissions
 
-为了让您能够以普通用户身份管理虚拟机（而不是总是使用 `sudo`），您需要将您的用户添加到 `libvirt` 和 `kvm` 组。
+To manage VMs as a regular user (without `sudo`), add your user to the `libvirt` and `kvm` groups.
 
 ```bash
-# 将当前用户添加到 libvirt 和 kvm 组
+# Add the current user to the libvirt and kvm groups
 sudo adduser $(whoami) libvirt
 sudo adduser $(whoami) kvm
 ```
 
-> **重要提示**：添加组后，您**必须完全注销并重新登录**（或重启电脑），才能使组更改生效。
+> **Important:** After being added to the groups, you **must log out and log back in** (or reboot) for the changes to take effect.
 
-#### 4\. 验证安装
+#### 4. Verify Installation
 
-重新登录后，运行以下命令来验证一切是否正常：
+After logging back in, run the following commands to verify that everything is working:
 
 ```bash
-# 检查 libvirtd 服务是否正在运行
+# Check if the libvirtd service is running
 sudo systemctl status libvirtd
 
-# (无需 sudo) 尝试列出虚拟机（现在应该是空的）
+# (Without sudo) Try to list virtual machines (should be empty for now)
 virsh list --all
 ```
 
-如果 `virsh list` 命令在没有 `sudo` 的情况下成功运行（即使只是显示一个空列表），那么您的宿主机就准备好了！
+If the `virsh list` command runs successfully without `sudo` (even if it just shows an empty list), your host machine is ready! You can also now find and launch the "Virtual Machine Manager" (`virt-manager`) GUI from your applications menu.
 
-您现在也可以在应用程序菜单中找到并启动 "Virtual Machine Manager" (`virt-manager`) 图形界面。
+---
 
------
+### Phase 2: Create a "Golden Image" VM (Detailed Steps)
 
-这是一个很好的开始。当您完成宿主机的准备工作后，请告诉我，我将为您提供\*\*创建“黄金镜像”虚拟机（第二阶段）\*\*的详细步骤。
+This "golden image" is a pre-configured VM template. We will create and configure it *once*, then clone it to create all our Hadoop nodes (NameNode, DataNodes). This saves a lot of repetitive work. We will use the graphical `virt-manager` tool as it is more intuitive.
 
-好的，我们进入**阶段二：创建“黄金镜像”虚拟机**。
+#### 1. (Host) Download the OS Image
 
-这个“黄金镜像”是一个预先配置好的虚拟机模板。我们将只创建和配置 *一次*，然后克隆它来创建所有的 Hadoop 节点（NameNode, DataNode）。这会节省大量重复劳动。
+Hadoop runs well on Linux. **Ubuntu Server 22.04 LTS** is highly recommended for its stability and community support.
 
-我们将使用图形化的 `virt-manager` 工具，因为它更直观。
-
------
-
-### 阶段二：创建“黄金镜像”虚拟机（详细步骤）
-
-#### 1\. (宿主机) 下载操作系统镜像
-
-Hadoop 在 Linux 上运行良好。我强烈推荐 **Ubuntu Server 22.04 LTS**（长期支持版），它稳定且资源丰富。
-
-> **提示**：您可以在宿主机上打开浏览器下载，或者使用 `wget`：
+> **Tip:** You can download it via a browser on your host machine, or use `wget`:
 >
 > ```bash
-> # 这是一个示例链接，您可以去 Ubuntu 官网获取最新的
-> cd ~/Downloads  # 或者您想存放 ISO 的任何地方
+> # This is an example link, get the latest from the Ubuntu website
+> cd ~/Downloads  # Or wherever you want to store the ISO
 > wget https://releases.ubuntu.com/22.04/ubuntu-22.04.4-live-server-amd64.iso
 > ```
 
-#### 2\. (宿主机) 启动 Virt-Manager 并创建 VM
+#### 2. (Host) Launch Virt-Manager and Create the VM
 
-1.  从您的应用程序菜单启动 "Virtual Machine Manager"。
-2.  点击左上角的 "Create a new virtual machine" 图标（像一个发光的显示器）。
-3.  **步骤 1/4: New VM**
-      * 选择 "Local install media (ISO image or CDROM)"。
-      * 点击 "Forward"。
-4.  **步骤 2/4: Locate media**
-      * 点击 "Browse..." -\> "Browse Local"。
-      * 导航到您刚刚下载的 Ubuntu Server ISO 文件并选择它。
-      * 确保 "Automatically detect OS based on media" 被勾选（它应该会自动识别为 Ubuntu 22.04）。
-      * 点击 "Forward"。
-5.  **步骤 3/4: Choose Memory and CPU**
-      * **Memory (RAM):** 至少 `2048` MB (即 2GB)。如果您的宿主机内存充足，`4096` MB (4GB) 更好。
-      * **CPUs:** `2` 个 vCPUs 即可。
-      * 点击 "Forward"。
-6.  **步骤 4/4: Create Storage**
-      * 选择 "Create a disk image for the virtual machine"。
-      * 为模板设置大小：`20` GB 足够了。
-      * 点击 "Forward"。
-7.  **最后一步: Ready to begin**
-      * **Name:** 给您的VM起一个描述性的名字，例如 `hadoop-template` 或 `ubuntu-golden`。
-      * **重要：** 勾选 "Customize configuration before install"。
-      * 点击 "Finish"。
+1.  Launch "Virtual Machine Manager" from your applications menu.
+2.  Click the "Create a new virtual machine" icon (looks like a glowing monitor) in the top-left.
+3.  **Step 1/4: New VM**
+    *   Select "Local install media (ISO image or CDROM)".
+    *   Click "Forward".
+4.  **Step 2/4: Locate media**
+    *   Click "Browse..." -> "Browse Local".
+    *   Navigate to and select the Ubuntu Server ISO file you just downloaded.
+    *   Ensure "Automatically detect OS based on media" is checked (it should identify Ubuntu 22.04).
+    *   Click "Forward".
+5.  **Step 3/4: Choose Memory and CPU**
+    *   **Memory (RAM):** At least `2048` MB (2GB). `4096` MB (4GB) is better if your host has enough memory.
+    *   **CPUs:** `2` vCPUs are sufficient.
+    *   Click "Forward".
+6.  **Step 4/4: Create Storage**
+    *   Select "Create a disk image for the virtual machine".
+    *   Set the size for the template: `20` GB is enough.
+    *   Click "Forward".
+7.  **Final Step: Ready to begin**
+    *   **Name:** Give your VM a descriptive name, e.g., `hadoop-template` or `ubuntu-golden`.
+    *   **Important:** Check "Customize configuration before install".
+    *   Click "Finish".
 
-#### 3\. (宿主机) 关键配置：网络
+#### 3. (Host) Key Configuration: Network
 
-在安装开始前，`virt-manager` 会显示一个配置窗口。我们来检查网络设置。
+Before the installation begins, `virt-manager` will show a configuration window. Let's check the network settings.
 
-1.  在左侧列表中，点击 "NIC" (或 "Network")。
-2.  确保 **Network source** 设置为 "**NAT (default)**"。
-      * *说明：* 这将使您的 VM 可以通过宿主机访问外部互联网（以下载 Java 和 Hadoop），但它目前还不能被其他 VM 访问。我们会在下一阶段解决这个问题。
-3.  点击左上角的 "Begin Installation"。
+1.  In the left-hand list, click "NIC" (or "Network").
+2.  Ensure **Network source** is set to "**NAT (default)**".
+    *   *Explanation:* This will allow your VM to access the external internet (for downloading Java and Hadoop) through the host, but it won't be accessible by other VMs yet. We will fix this in the next phase.
+3.  Click "Begin Installation" in the top-left.
 
-#### 4\. (VM 内部) 安装 Ubuntu Server
+#### 4. (Inside VM) Install Ubuntu Server
 
-VM 将启动并加载 Ubuntu Server 安装程序。您现在是在虚拟机控制台内操作。
+The VM will boot and load the Ubuntu Server installer. You are now operating inside the VM console.
 
-1.  **语言：** 选择 English（推荐用于服务器）或中文。
-2.  **键盘：** 按照默认设置。
-3.  **网络连接：** 保持默认（DHCP），它应该会自动获取一个 IP 地址。
-4.  **代理：** 留空 (按 Done)。
-5.  **镜像源：** 保持默认 (按 Done)。
-6.  **存储：** 选择 "Use an entire disk" 并按 Done。在下一个确认页面再次按 Done。
-7.  **Profile Setup (用户信息):**
-      * Your name: `Hadoop Admin` (或任意)
-      * Your server's name: `hadoop-template`
-      * Pick a username: `hadoop` (**推荐**：直接创建 `hadoop` 用户)
-      * Choose a password: (设置一个您能记住的强密码)
-8.  **SSH Setup (非常重要):**
-      * **勾选 "Install OpenSSH server"**。这是必须的，Hadoop 依赖 SSH 来管理节点。
+1.  **Language:** Choose English (recommended for servers).
+2.  **Keyboard:** Use the default layout.
+3.  **Network Connections:** Keep the default (DHCP); it should get an IP address automatically.
+4.  **Proxy:** Leave blank (press Done).
+5.  **Mirror:** Keep the default (press Done).
+6.  **Storage:** Select "Use an entire disk" and press Done. Press Done again on the confirmation screen.
+7.  **Profile Setup:**
+    *   Your name: `Hadoop Admin` (or anything)
+    *   Your server's name: `hadoop-template`
+    *   Pick a username: `hadoop` (**Recommended**: create the `hadoop` user directly)
+    *   Choose a password: (Set a strong, memorable password)
+8.  **SSH Setup (Very Important):**
+    *   **Check "Install OpenSSH server"**. This is mandatory, as Hadoop relies on SSH to manage nodes.
 9.  **Featured Server Snaps:**
-      * **不要**选择 "hadoop"。我们将手动安装，以获得完全控制权。
-      * 保持所有选项都不勾选，直接按 Done。
-10. **等待安装完成**... 然后选择 "Reboot Now"。
+    *   **Do NOT** select "hadoop". We will install it manually for full control.
+    *   Leave all options unchecked and press Done.
+10. **Wait for the installation to complete**... then select "Reboot Now".
 
-> **提示：** 当它显示 "Please remove the installation medium" 时，**不要**管它。`virt-manager` 会自动处理。直接按 Enter 键。
+> **Tip:** When it says "Please remove the installation medium", **ignore it**. `virt-manager` handles this automatically. Just press Enter.
 
-#### 5\. (VM 内部) 配置“黄金镜像”
+#### 5. (Inside VM) Configure the "Golden Image"
 
-VM 重启后，使用您创建的 `hadoop` 用户和密码登录。
+After the VM reboots, log in with the `hadoop` user and password you created.
 
-1.  **更新系统并安装 Java**：Hadoop 需要 Java 运行环境。
+1.  **Update the system and install Java**: Hadoop requires a Java Runtime Environment.
 
     ```bash
-    # 刷新软件包列表
+    # Refresh package lists
     sudo apt update
 
-    # 安装 OpenJDK 11 (Hadoop 3.x 完美支持)
-    # -y (自动回答 yes)
-    # -headless (无头版，服务器不需要 GUI)
+    # Install OpenJDK 11 (perfectly compatible with Hadoop 3.x)
+    # -y (auto-answer yes)
+    # -headless (server doesn't need a GUI)
     sudo apt install -y openjdk-11-jdk-headless
 
-    # 验证安装
+    # Verify installation
     java -version
-    # 您应该会看到 OpenJDK 11 的输出
+    # You should see output for OpenJDK 11
     ```
 
-2.  **安装有用的工具** (推荐)：
+2.  **Install useful tools** (recommended):
 
     ```bash
-    # net-tools 包含 ifconfig, rsync 用于文件同步
+    # net-tools contains ifconfig, rsync is for file syncing
     sudo apt install -y net-tools rsync
     ```
 
-3.  **关闭防火墙 (仅限测试环境)**：
+3.  **Disable the firewall (for test environments only)**:
 
-    为了简化我们这个学习集群的内部网络通信，我们禁用 `ufw` 防火墙。
+    To simplify internal network communication for our learning cluster, we disable `ufw`.
 
     ```bash
-    # 检查状态 (应该是 active)
+    # Check status (should be active)
     sudo ufw status
 
-    # 禁用防火墙
+    # Disable the firewall
     sudo ufw disable
     ```
 
-    > *注意：在生产环境中，您永远不应该这样做，而是应该配置严格的防火墙规则。*
+    > *Note: In a production environment, you should never do this. Instead, configure strict firewall rules.*
 
-#### 6\. 清理和关机
+#### 6. Clean Up and Shut Down
 
-最后，我们清理一下模板并关闭它，准备进行克隆。
+Finally, we clean up the template and shut it down, ready for cloning.
 
 ```bash
-# 清理下载的软件包缓存
+# Clean the downloaded package cache
 sudo apt clean
 
-# 关闭虚拟机
+# Shut down the VM
 sudo shutdown now
 ```
 
------
+You now have a powered-off VM named `hadoop-template` with Ubuntu Server, OpenSSH, and Java installed.
 
-恭喜！您现在有了一个名为 `hadoop-template` 且已关闭的虚拟机。它已经安装了 Ubuntu Server、OpenSSH 和 Java。
+---
 
-我们已经完成了阶段二。当您准备好后，请告诉我，我们将进入**阶段三：克隆虚拟机和配置网络**。
+### Phase 3: Clone VMs and Configure Network (Detailed Steps)
 
+#### 1. (Host) Clone the Virtual Machines
 
+We will use `virt-manager` to clone your `hadoop-template` three times.
 
+1.  Open `virt-manager`.
+2.  Ensure `hadoop-template` is **powered off**.
+3.  Right-click `hadoop-template` -> **Clone**.
+4.  In the pop-up window:
+    *   **Name:** `hadoop-namenode`
+    *   **Storage:** Check "Create a full copy of the disk" (Important!).
+5.  Click **Clone**.
+6.  **Repeat this process** twice more to create:
+    *   `hadoop-datanode1`
+    *   `hadoop-datanode2`
 
-### 阶段三：克隆虚拟机与配置网络（详细步骤）
+You should now have four powered-off VMs: `hadoop-template` (our backup) and the three new nodes.
 
-#### 1\. (宿主机) 克隆虚拟机
+#### 2. (Inside VM) Start and Configure Each Node
 
-我们将使用 `virt-manager` 克隆您的 `hadoop-template` 三次。
+We will start and configure **each** new VM (`hadoop-namenode`, `hadoop-datanode1`, `hadoop-datanode2`) **one by one**.
 
-1.  打开 `virt-manager`。
-2.  确保 `hadoop-template` **已关机**。
-3.  右键点击 `hadoop-template` -\> **Clone**。
-4.  在弹出的窗口中：
-      * **Name:** `hadoop-namenode`
-      * **Storage:** 勾选 "Create a full copy of the disk" (重要！)。
-5.  点击 **Clone**。
-6.  **重复此过程** 两次，创建：
-      * `hadoop-datanode1`
-      * `hadoop-datanode2`
+**Please perform steps 2a, 2b, and 2c for each of the three new VMs:**
 
-您现在应该有四个已关机的 VM：`hadoop-template`（我们的备份）和三个新节点。
+##### a. Start and Set Hostname
 
-#### 2\. (VM 内部) 启动并配置每个节点
-
-我们将**依次**启动和配置**每一个**新的 VM (`hadoop-namenode`, `hadoop-datanode1`, `hadoop-datanode2`)。
-
-**请对以下三个 VM 分别执行 2a, 2b 和 2c 步骤：**
-
-##### a. 启动并设置主机名
-
-1.  在 `virt-manager` 中，启动 `hadoop-namenode` 虚拟机。
-
-2.  使用您在模板中创建的 `hadoop` 用户登录。
-
-3.  **设置主机名：** VM 的内部主机名仍然是 `hadoop-template`，我们需要更改它。
+1.  In `virt-manager`, start the `hadoop-namenode` VM.
+2.  Log in as the `hadoop` user you created in the template.
+3.  **Set the hostname:** The VM's internal hostname is still `hadoop-template`; we need to change it.
 
     ```bash
-    # (在 hadoop-namenode VM 内部)
+    # (Inside the hadoop-namenode VM)
     sudo hostnamectl set-hostname hadoop-namenode
     ```
 
-> **对 `hadoop-datanode1` 重复此操作：**
+> **Repeat for `hadoop-datanode1`:**
 > `sudo hostnamectl set-hostname hadoop-datanode1`
 >
-> **对 `hadoop-datanode2` 重复此操作：**
+> **Repeat for `hadoop-datanode2`:**
 > `sudo hostnamectl set-hostname hadoop-datanode2`
 
-##### b. 配置静态 IP (Netplan)
+##### b. Configure Static IP (Netplan)
 
-这是最复杂但最重要的一步。我们将把默认的 DHCP（自动获取IP）改为静态IP。
+This is the most complex but most important step. We will change the default DHCP (automatic IP) to a static IP.
 
-1.  **找出网卡名称：**
+1.  **Find the network interface name:**
 
     ```bash
-    # (在 VM 内部)
+    # (Inside the VM)
     ip a
     ```
 
-    查看输出。您会看到 `lo` (本地回环) 和另一个接口，通常名字是 `ens3`、`enp1s0` 或 `eth0`。记下这个名字（我们假设它是 `ens3`）。
+    Look at the output. You will see `lo` (loopback) and another interface, typically named `ens3`, `enp1s0`, or `eth0`. Note this name (we'll assume it's `ens3`).
 
-2.  **编辑 Netplan 配置文件：**
-    Ubuntu 使用 `netplan` 管理网络。配置文件位于 `/etc/netplan/`。
+2.  **Edit the Netplan configuration file:**
+    Ubuntu uses `netplan` to manage networking. The configuration files are in `/etc/netplan/`.
 
     ```bash
-    # (在 VM 内部)
-    # 注意：您的文件名可能是 00-installer-config.yaml 或 50-cloud-init.yaml 等
-    sudo nano /etc/netplan/00-installer-config.yaml 
+    # (Inside the VM)
+    # Note: Your filename might be 00-installer-config.yaml or 50-cloud-init.yaml, etc.
+    sudo nano /etc/netplan/00-installer-config.yaml
     ```
-    第一步：永久禁用 Cloud-Init 的网络管理 我们来告诉 cloud-init：“别再管网络了！”
+    First step: Permanently disable network management by Cloud-Init. Let's tell cloud-init: "Stop managing the network!"
 
-```Bash
+    ```bash
+    # (Inside the VM)
+    # 1. Create a new config file to override the default
+    echo "network: {config: disabled}" | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
 
-# (在 VM 内部)
-# 1. 创建一个新的配置文件来覆盖默认设置
-echo "network: {config: disabled}" | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+    # 2. Remove the old config file generated by cloud-init (optional but recommended)
+    sudo rm /etc/netplan/50-cloud-init.yaml
+    ```
 
-# 2. 删除 cloud-init 之前生成的旧配置文件（可选但推荐）
-sudo rm /etc/netplan/50-cloud-init.yaml
-```
+    Second step: Create our own Netplan configuration file. Now that cloud-init won't interfere, we can create a new configuration file that it won't touch.
 
-第二步：创建我们自己的 Netplan 配置文件
-现在 cloud-init 不会再捣乱了，我们可以创建一个它不会触碰的新配置文件。
+    Note: `nano` is sensitive to indentation. Please ensure the spacing is correct.
 
-注意： nano 对缩进很敏感。请确保空格正确。
+    On hadoop-datanode1:
+    ```bash
+    # (On datanode1)
+    sudo nano /etc/netplan/01-hadoop-static.yaml
+    ```
 
-在 hadoop-datanode1 上：
-
-```Bash
-
-# (在 datanode1 上)
-sudo nano /etc/netplan/01-hadoop-static.yaml
-```
-
-3.  **修改文件内容：**
-    您的文件**之前**可能如下所示（使用 DHCP）：
+3.  **Modify the file content:**
+    Your file might **previously** have looked like this (using DHCP):
 
     ```yaml
-    # 之前 (DHCP):
+    # Before (DHCP):
     network:
       ethernets:
-        ens3: # <== 你的网卡名称
+        ens3: # <== your interface name
           dhcp4: true
       version: 2
     ```
 
-    **请将其修改为**静态配置。**注意 YAML 格式对缩进非常敏感！**
+    **Change it** to a static configuration. **Be very careful with YAML's indentation!**
 
-    **对于 `hadoop-namenode` (192.168.122.101):**
+    **For `hadoop-namenode` (192.168.122.101):**
 
-```yaml
-network:
-  ethernets:
-    ens3: # <== 您的网卡名称
-      dhcp4: no
-      addresses:
-        - 192.168.122.101/24  # <-- 节点的 IP
-      
-      # gateway4: 192.168.122.1  <-- 这是已弃用的旧方法
+    ```yaml
+    network:
+      ethernets:
+        ens3: # <== Your interface name
+          dhcp4: no
+          addresses:
+            - 192.168.122.101/24  # <-- Node's IP
+          
+          # gateway4: 192.168.122.1  <-- This is the old, deprecated method
 
-      # 这是新的、推荐的方法
-      routes:
-        - to: default
-          via: 192.168.122.1  # <-- 192.168.122.1 是 KVM/libvirt 的默认网关
+          # This is the new, recommended method
+          routes:
+            - to: default
+              via: 192.168.122.1  # <-- 192.168.122.1 is the default gateway for KVM/libvirt
 
-      nameservers:
-        addresses: [192.168.122.1, 8.8.8.8]
-  version: 2
-```
+          nameservers:
+            addresses: [192.168.122.1, 8.8.8.8]
+      version: 2
+    ```
 
-      * `192.168.122.1` 是 `virt-manager` 默认NAT网络的网关。
-      * `8.8.8.8` 是 Google 的 DNS，确保VM可以访问互联网。
+    *   `192.168.122.1` is the gateway for the `virt-manager` default NAT network.
+    *   `8.8.8.8` is Google's DNS, ensuring the VM can access the internet.
 
-    **对于 `hadoop-datanode1` (192.168.122.102):**
-    使用 `addresses: [192.168.122.102/24]` (其他部分保持不变)。
+    **For `hadoop-datanode1` (192.168.122.102):**
+    Use `addresses: [192.168.122.102/24]` (the rest remains the same).
 
-    **对于 `hadoop-datanode2` (192.168.122.103):**
-    使用 `addresses: [192.168.122.103/24]` (其他部分保持不变)。
+    **For `hadoop-datanode2` (192.168.122.103):**
+    Use `addresses: [192.168.122.103/24]` (the rest remains the same).
 
-4.  **应用网络配置：**
-    保存文件后，在 **每个** VM 上运行：
+4.  **Apply the network configuration:**
+    After saving the file, run on **each** VM:
 
     ```bash
-    # (在 VM 内部)
+    # (Inside the VM)
     sudo netplan apply
     ```
 
-    您的 SSH 连接可能会断开（如果使用 SSH）。在 `virt-manager` 控制台中，使用 `ip a` 验证新的 IP 地址是否已生效。
+    Your SSH connection might drop. In the `virt-manager` console, verify the new IP address with `ip a`.
 
-##### c. 配置 hosts 文件 (DNS 解析)
+##### c. Configure the hosts file (DNS Resolution)
 
-最后一步是让所有 VM 都能通过主机名找到彼此。**您必须在 *所有三个* VM 上执行此操作。**
+The final step is to enable all VMs to find each other by hostname. **You must do this on *all three* VMs.**
 
-1.  编辑 `/etc/hosts` 文件：
+1.  Edit the `/etc/hosts` file:
 
     ```bash
-    # (在 VM 内部)
+    # (Inside the VM)
     sudo nano /etc/hosts
     ```
 
-2.  在文件**顶部**添加以下三行：
+2.  Add the following three lines at the **top** of the file:
 
     ```
     # Hadoop Cluster
@@ -413,87 +392,82 @@ network:
     192.168.122.103  hadoop-datanode2
     ```
 
-    (保留 `127.0.0.1 localhost` 等其他默认条目)
+    (Keep other default entries like `127.0.0.1 localhost`)
 
-#### 3\. (VM 内部) 验证和重启
+#### 3. (Inside VM) Verify and Reboot
 
-1.  **验证：**
-    现在您应该在 `hadoop-namenode` 上了。尝试 `ping` 其他节点：
+1.  **Verification:**
+    On `hadoop-namenode`, try to `ping` the other nodes:
 
     ```bash
-    # (在 hadoop-namenode VM 内部)
+    # (Inside the hadoop-namenode VM)
     ping hadoop-datanode1
     ping hadoop-datanode2
     ```
 
-    如果它们都能 `ping` 通并且显示了正确的 IP 地址，那么您的网络就配置成功了！
+    If they can be pinged and show the correct IP addresses, your network is configured successfully!
 
-2.  **重启：**
-    为确保所有更改（主机名、网络）在重启后都能生效，请在**所有三个** VM 上执行：
+2.  **Reboot:**
+    To ensure all changes (hostname, network) persist after a reboot, execute on **all three** VMs:
 
     ```bash
-    # (在所有三个 VM 内部)
+    # (Inside all three VMs)
     sudo reboot
     ```
 
------
+---
 
-阶段三完成！您现在拥有一个由三个虚拟机组成的集群，它们具有永久的主机名和静态IP地址，并且可以相互通信。
+Phase three is complete! You now have a three-VM cluster with permanent hostnames, static IPs, and mutual connectivity. This provides a solid foundation for installing Hadoop.
 
-这为安装 Hadoop 奠定了坚实的基础。准备好后，请告诉我，我们将开始**阶段四：Hadoop 安装与配置**。
+---
 
+### Phase 4: Hadoop Installation & Configuration
 
-好的，我们进入关键的**阶段四：Hadoop 安装与配置**。
+From now on, **stop using the `virt-manager` console**.
 
-从现在开始，请**不要再使用 `virt-manager` 的黑屏控制台**了。
+**Your workflow:** Open **three** terminal windows on your host machine.
 
-**您的工作流程：** 打开**三个**宿主机终端窗口。
+*   **Terminal 1:** `ssh hadoop@hadoop-namenode`
+*   **Terminal 2:** `ssh hadoop@hadoop-datanode1`
+*   **Terminal 3:** `ssh hadoop@hadoop-datanode2`
 
-  * **终端 1:** `ssh hadoop@hadoop-namenode`
-  * **终端 2:** `ssh hadoop@hadoop-datanode1`
-  * **终端 3:** `ssh hadoop@hadoop-datanode2`
+We will use `(ALL)`, `(NameNode)`, or `(DataNodes)` to indicate where commands should be run.
 
-我们将使用 `(ALL)`、`(NameNode)` 或 `(DataNodes)` 来标记命令应该在哪些终端中执行。
+#### 1. (ALL) Download and Extract Hadoop
 
------
+Download Hadoop on all three nodes. We will use Hadoop 3.3.6, a very stable version.
 
-### 阶段四：Hadoop 安装与配置
-
-#### 1\. (ALL) 下载并解压 Hadoop
-
-我们在所有三个节点上下载 Hadoop。我们将使用 Hadoop 3.3.6，这是一个非常稳定的版本。
-
-> **(ALL)** 在所有三个终端中运行：
+> **(ALL)** Run in all three terminals:
 
 ```bash
-# 切换到 hadoop 用户的主目录
+# Switch to the hadoop user's home directory
 cd ~
 
-# 下载 Hadoop 3.3.6 二进制包
+# Download the Hadoop 3.3.6 binary package
 wget https://mirrors.dotsrc.org/apache/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
 
-# 解压
+# Extract
 tar -xzf hadoop-3.3.6.tar.gz
 
-# 将其移动到 /usr/local/ 目录下，并重命名为 hadoop
+# Move it to /usr/local/ and rename it to hadoop
 sudo mv hadoop-3.3.6 /usr/local/hadoop
 
-# 更改 hadoop 目录的所有权，归 hadoop 用户所有
+# Change ownership of the hadoop directory to the hadoop user
 sudo chown -R hadoop:hadoop /usr/local/hadoop
 ```
 
-#### 2\. (ALL) 设置环境变量
+#### 2. (ALL) Set Environment Variables
 
-我们需要告诉系统 Java 和 Hadoop 在哪里。
+We need to tell the system where Java and Hadoop are located.
 
-> **(ALL)** 在所有三个终端中运行：
+> **(ALL)** Run in all three terminals:
 
 ```bash
-# 打开 .bashrc 文件进行编辑
+# Open the .bashrc file for editing
 nano ~/.bashrc
 ```
 
-滚动到文件的**最底部**，添加以下内容：
+Scroll to the **very bottom** of the file and add the following:
 
 ```bash
 # Java Home
@@ -510,88 +484,88 @@ export HADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_HOME/lib/native
 export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 ```
 
-保存文件 (Ctrl+O) 并退出 (Ctrl+X)。然后，**立即生效**这些变量：
+Save the file (Ctrl+O) and exit (Ctrl+X). Then, apply the variables **immediately**:
 
 ```bash
-# (ALL) 运行
+# (ALL) Run
 source ~/.bashrc
 
-# (ALL) 验证 (可选)
+# (ALL) Verify (optional)
 echo $HADOOP_HOME
-# 应该输出: /usr/local/hadoop
+# Should output: /usr/local/hadoop
 ```
 
-#### 3\. (ALL) 配置 hadoop-env.sh
+#### 3. (ALL) Configure hadoop-env.sh
 
-Hadoop 需要在其自己的配置文件中明确知道 `JAVA_HOME` 的路径。
+Hadoop needs to know the `JAVA_HOME` path explicitly in its own configuration file.
 
-> **(ALL)** 在所有三个终端中运行：
+> **(ALL)** Run in all three terminals:
 
 ```bash
-# 编辑 hadoop-env.sh 文件
+# Edit the hadoop-env.sh file
 nano $HADOOP_HOME/etc/hadoop/hadoop-env.sh
 ```
 
-在这个文件中，找到（或`Ctrl+W`搜索）`export JAVA_HOME=` 这一行。它可能被注释掉了（以 `#` 开头）或者指向一个变量。
+In this file, find the line `export JAVA_HOME=`. It might be commented out (starts with `#`) or point to a variable.
 
-请将其修改为**明确的路径**（删除 `#`）：
+Modify it to the **explicit path** (and remove the `#`):
 
 ```bash
-# (大约在第 54 行)
+# (Around line 54)
 export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ```
 
-保存并退出。
+Save and exit.
 
------
+---
 
-#### 4\. (NameNode) 设置无密码 SSH
+#### 4. (NameNode) Set Up Passwordless SSH
 
-这是**最关键**的一步。NameNode 需要能够**无需密码**就通过 SSH 登录到所有 DataNode（以及它自己）来启动和停止服务。
+This is the **most critical** step. The NameNode needs to be able to SSH into all DataNodes (and itself) **without a password** to start and stop services.
 
-> **(NameNode)** **只在 `hadoop-namenode` 终端**中运行：
+> **(NameNode)** Run **only in the `hadoop-namenode` terminal**:
 
 ```bash
-# 1. 生成 SSH 密钥对（如果之前没生成过）
-# 一路按 Enter 键接受所有默认值（尤其是“no passphrase”）
+# 1. Generate an SSH key pair (if you haven't already)
+# Press Enter all the way through to accept defaults (especially "no passphrase")
 ssh-keygen -t rsa
 
-# 2. 将公钥复制到集群中的 *所有* 节点（包括它自己）
+# 2. Copy the public key to *all* nodes in the cluster (including itself)
 ssh-copy-id hadoop@hadoop-namenode
 ssh-copy-id hadoop@hadoop-datanode1
 ssh-copy-id hadoop@hadoop-datanode2
 ```
 
-  * 每次 `ssh-copy-id` 都会要求您输入 `hadoop` 用户的密码。
-  * 它可能会询问 "Are you sure you want to continue connecting (yes/no)?"，输入 `yes`。
+*   Each `ssh-copy-id` will ask for the `hadoop` user's password.
+*   It may ask "Are you sure you want to continue connecting (yes/no)?", type `yes`.
 
-**验证！** 这一步必须成功：
+**VERIFY!** This step must succeed:
 
 ```bash
-# (NameNode) 尝试登录到 datanode1
+# (NameNode) Try to log into datanode1
 ssh hadoop-datanode1
-# 您应该会 *立即* 登录，而 *不* 需要输入密码。
-# 输入 exit 退出
+# You should log in *immediately* without a password prompt.
+# Type exit to return
 exit
 
-# (NameNode) 尝试登录到 datanode2
+# (NameNode) Try to log into datanode2
 ssh hadoop-datanode2
-# 同样，应该立即登录。
-# 输入 exit 退出
+# Again, should be immediate.
+# Type exit to return
 exit
 ```
 
-如果不需要密码就能登录，恭喜您，最难的部分结束了！
+If you can log in without a password, congratulations, the hardest part is over!
 
------
+---
 
-#### 5\. (NameNode) 编辑核心配置文件
+#### 5. (NameNode) Edit Core Configuration Files
 
-我们将**只在 NameNode 上**编辑配置文件，然后将它们分发到其他节点。
+We will edit the configuration files **only on the NameNode**, then distribute them to the other nodes.
 
-> **(NameNode)** **只在 `hadoop-namenode` 终端**中操作。
+> **(NameNode)** Operate **only in the `hadoop-namenode` terminal**.
 
-所有配置文件都在 `$HADOOP_HOME/etc/hadoop/` 目录中。
+All configuration files are in the `$HADOOP_HOME/etc/hadoop/` directory.
 
 ##### a. core-site.xml
 
@@ -599,7 +573,7 @@ exit
 nano $HADOOP_HOME/etc/hadoop/core-site.xml
 ```
 
-在 `<configuration>` 和 `</configuration>` 标签之间添加以下内容：
+Add the following between the `<configuration>` and `</configuration>` tags:
 
 ```xml
 <configuration>
@@ -612,27 +586,27 @@ nano $HADOOP_HOME/etc/hadoop/core-site.xml
 
 ##### b. hdfs-site.xml
 
-在这一步，我们创建 HDFS 实际存储数据的目录。
+In this step, we create the directories where HDFS will actually store its data.
 
 ```bash
-# (NameNode) 只在 NameNode 上创建 *namenode* 目录
+# (NameNode) Create the *namenode* directory only on the NameNode
 sudo mkdir -p /usr/local/hadoop/data/namenode
 sudo chown -R hadoop:hadoop /usr/local/hadoop/data
 
-# (DataNodes) 只在 datanode1 和 datanode2 上创建 *datanode* 目录
-# 请在您的 *终端 2* 和 *终端 3* 中运行这两个命令
+# (DataNodes) Create the *datanode* directory only on datanode1 and datanode2
+# Please run these two commands in your *Terminal 2* and *Terminal 3*
 sudo mkdir -p /usr/local/hadoop/data/datanode
 sudo chown -R hadoop:hadoop /usr/local/hadoop/data
 ```
 
-现在，回到 **NameNode** 终端，编辑 `hdfs-site.xml`：
+Now, back in the **NameNode** terminal, edit `hdfs-site.xml`:
 
 ```bash
 # (NameNode)
 nano $HADOOP_HOME/etc/hadoop/hdfs-site.xml
 ```
 
-在 `<configuration>` 标签之间添加：
+Add between the `<configuration>` tags:
 
 ```xml
 <configuration>
@@ -653,17 +627,17 @@ nano $HADOOP_HOME/etc/hadoop/hdfs-site.xml
 
 ##### c. mapred-site.xml
 
-此文件默认不存在，Hadoop 提供了一个模板。
+This file doesn't exist by default; Hadoop provides a template.
 
 ```bash
-# (NameNode) 先从模板复制
+# (NameNode) First, copy from the template
 cp $HADOOP_HOME/etc/hadoop/mapred-site.xml.template $HADOOP_HOME/etc/hadoop/mapred-site.xml
 
-# (NameNode) 再编辑
+# (NameNode) Then, edit
 nano $HADOOP_HOME/etc/hadoop/mapred-site.xml
 ```
 
-在 `<configuration>` 标签之间添加（告诉 MapReduce 在 YARN 上运行）：
+Add between the `<configuration>` tags (to tell MapReduce to run on YARN):
 
 ```xml
 <configuration>
@@ -683,7 +657,6 @@ nano $HADOOP_HOME/etc/hadoop/mapred-site.xml
         <name>mapreduce.reduce.env</name>
         <value>HADOOP_MAPRED_HOME=/usr/local/hadoop</value>
     </property>
-
 </configuration>
 ```
 
@@ -698,7 +671,7 @@ nano $HADOOP_HOME/etc/hadoop/yarn-site.xml
 hdfs dfs -mkdir -p /yarn-logs
 ```
 
-在 `<configuration>` 标签之间添加（配置 YARN 服务）：
+Add between the `<configuration>` tags (to configure YARN services):
 
 ```xml
 <configuration>
@@ -714,12 +687,10 @@ hdfs dfs -mkdir -p /yarn-logs
         <name>yarn.log-aggregation-enable</name>
         <value>true</value>
     </property>
-
     <property>
         <name>yarn.nodemanager.remote-app-log-dir</name>
         <value>hdfs://hadoop-namenode:9000/yarn-logs</value>
     </property>
-
     <property>
         <name>yarn.log-aggregation.retain-seconds</name>
         <value>86400</value> 
@@ -727,112 +698,104 @@ hdfs dfs -mkdir -p /yarn-logs
 </configuration>
 ```
 
-##### e. workers (原 slaves 文件)
+##### e. workers (formerly slaves)
 
-这个文件告诉 Hadoop 哪些机器是**工作节点 (DataNode)**。
+This file tells Hadoop which machines are **worker nodes (DataNodes)**.
 
 ```bash
 # (NameNode)
 nano $HADOOP_HOME/etc/hadoop/workers
 ```
 
-删除文件中的所有内容（默认可能是 `localhost`），然后添加您的**两个 DataNode** 的主机名：
+Delete all content in the file (default might be `localhost`) and add the hostnames of your **two DataNodes**:
 
 ```
 hadoop-datanode1
 hadoop-datanode2
 ```
 
------
+---
 
-#### 6\. (NameNode) 分发配置文件
+#### 6. (NameNode) Distribute Configuration Files
 
-现在您的 NameNode 上的 `/etc/hadoop/` 目录已经配置完美了。我们把它们复制到所有 DataNode。
+Now that the `/etc/hadoop/` directory on your NameNode is perfectly configured, let's copy it to all DataNodes.
 
-> **(NameNode)** **只在 `hadoop-namenode` 终端**中运行：
+> **(NameNode)** Run **only in the `hadoop-namenode` terminal**:
 
 ```bash
-# 使用 scp (安全复制) 和我们设置好的无密码 SSH
-# 复制到 datanode1
+# Use scp (secure copy) with our passwordless SSH setup
+# Copy to datanode1
 scp -r $HADOOP_HOME/etc/hadoop/* hadoop-datanode1:$HADOOP_HOME/etc/hadoop/
 
-# 复制到 datanode2
+# Copy to datanode2
 scp -r $HADOOP_HOME/etc/hadoop/* hadoop-datanode2:$HADOOP_HOME/etc/hadoop/
 ```
 
------
+---
 
-**阶段四完成！**
+**Phase four is complete!** We have installed all software, configured all XML files, and set up SSH. The cluster is now "assembled" but not yet started.
 
-我们已经安装了所有软件，配置了所有 XML 文件，并设置了 SSH。集群现在已经“组装”完毕，但尚未启动。
+---
 
-准备好后，请告诉我，我们将进入最后一个阶段：**阶段五：启动和测试集群**。
+### 🚀 Phase 5: Startup and Testing
 
------
+This is the most exciting part. We will start all services and verify that your cluster is working.
 
-您可以观看这个关于[安装多节点 Hadoop 集群的视频](https://www.google.com/search?q=https://www.youtube.com/watch%3Fv%3DkYf8J-I-8-w)，它涵盖了我们刚刚执行的许多配置步骤。
+From now on, **all commands are run in your `hadoop-namenode` terminal (`ssh hadoop@hadoop-namenode`)**, unless specified otherwise.
 
-我们来到了最后一个阶段！这是最激动人心的部分，我们将启动所有服务并验证您的集群是否正常工作。
+#### 1. Format HDFS (First Time Only!)
 
-从现在开始，**所有命令都在您的 `hadoop-namenode` 终端（`ssh hadoop@hadoop-namenode`）中运行**，除非特别指明。
+Before the cluster's first startup, you must format the HDFS storage on the NameNode. This initializes the metadata directory.
 
------
-
-### 🚀 阶段五：启动与测试
-
-#### 1\. 格式化 HDFS (仅限第一次！)
-
-在集群第一次启动前，您必须格式化 NameNode 上的 HDFS 存储。这会初始化元数据目录。
-
-> **❗ 警告：** 此命令**一生只运行一次**！
-> 如果您在正在运行的集群上再次运行它，**所有 HDFS 数据都将被清除**。
+> **❗ Warning:** This command is **run only once in the lifetime of the cluster**!
+> If you run it again on a running cluster, **all HDFS data will be erased**.
 
 ```bash
 # (NameNode)
 hdfs namenode -format
 ```
 
-您应该会看到很多日志输出，请在最后寻找 `Storage directory /usr/local/hadoop/data/namenode has been successfully formatted.` 这条消息。
+You should see a lot of log output. Look for the message `Storage directory /usr/local/hadoop/data/namenode has been successfully formatted.` at the end.
 
------
+---
 
-#### 2\. 启动 HDFS 服务
+#### 2. Start HDFS Services
 
-此脚本将启动 NameNode、SecondaryNameNode（默认在 NameNode 上）以及 `workers` 文件中列出的所有 DataNode。
+This script will start the NameNode, the SecondaryNameNode (on the NameNode by default), and all DataNodes listed in the `workers` file.
 
 ```bash
 # (NameNode)
 start-dfs.sh
 ```
 
-  * 它可能会要求您确认 SSH 指纹（如果这是 `localhost` 首次连接 `datanode1` 等），输入 `yes`。
-  * 它将启动 `hadoop-namenode` 上的 `NameNode` 和 `SecondaryNameNode`。
-  * 它将通过 SSH 登录到 `hadoop-datanode1` 和 `hadoop-datanode2` 并启动 `DataNode` 进程。
+*   It may ask you to confirm SSH fingerprints; type `yes`.
+*   It will start the `NameNode` and `SecondaryNameNode` on `hadoop-namenode`.
+*   It will SSH into `hadoop-datanode1` and `hadoop-datanode2` to start the `DataNode` process.
 
------
+---
 
-#### 3\. 启动 YARN 服务
+#### 3. Start YARN Services
 
-此脚本将启动 ResourceManager（在 NameNode 上）以及 `workers` 文件中列出的所有 NodeManager。
+This script will start the ResourceManager (on the NameNode) and all NodeManagers listed in the `workers` file.
 
 ```bash
 # (NameNode)
 start-yarn.sh
 ```
 
------
+---
 
-#### 4\. ✅ 验证：见证奇迹的时刻
+#### 4. ✅ Verification: The Moment of Truth
 
-现在，让我们检查所有 Java 进程是否都已正确启动。`jps` (Java Virtual Machine Process Status) 是您最好的朋友。
+Now, let's check if all Java processes have started correctly. `jps` (Java Virtual Machine Process Status) is your best friend.
 
-> **(NameNode) 在您的 `hadoop-namenode` 终端中运行：**
+> **(NameNode)** In your `hadoop-namenode` terminal, run:
 >
 > ```bash
 > jps
 > ```
 >
-> 您**必须**看到以下进程（PID 会不同）：
+> You **must** see the following processes (PIDs will differ):
 >
 > ```
 > 12345 NameNode
@@ -841,13 +804,13 @@ start-yarn.sh
 > 12500 Jps
 > ```
 
-> **(DataNodes) 在您的 `hadoop-datanode1` 和 `hadoop-datanode2` 终端中运行：**
+> **(DataNodes)** In your `hadoop-datanode1` and `hadoop-datanode2` terminals, run:
 >
 > ```bash
 > jps
 > ```
 >
-> 您**必须**在 *每个* DataNode 上看到：
+> You **must** see on *each* DataNode:
 >
 > ```
 > 5678 DataNode
@@ -855,66 +818,62 @@ start-yarn.sh
 > 5800 Jps
 > ```
 
-**🕵️‍♂️ 故障排除：**
-如果任何一个进程缺失（例如 `DataNode` 没有启动），请立即检查日志文件。日志位于每个节点上的 `/usr/local/hadoop/logs/` 目录中。最常见的原因是 `hdfs-site.xml` 或 `core-site.xml` 中的配置拼写错误。
+**🕵️‍♂️ Troubleshooting:**
+If any process is missing (e.g., `DataNode` didn't start), check the log files immediately. Logs are in the `/usr/local/hadoop/logs/` directory on each node. The most common cause is a typo in `hdfs-site.xml` or `core-site.xml`.
 
------
+---
 
-#### 5\. 运行一个 MapReduce 任务 (WordCount)
+#### 5. Run a MapReduce Job (WordCount)
 
-如果所有进程都在运行，那么您的集群在理论上是好的。现在我们进行实际测试：运行一个作业！
+If all processes are running, your cluster is theoretically sound. Now for a real test: running a job! We'll use the WordCount example included with Hadoop.
 
-我们将使用 Hadoop 自带的 WordCount 示例。
-
-##### a. 在 HDFS 中创建输入目录
+##### a. Create an input directory in HDFS
 
 ```bash
 # (NameNode)
 hdfs dfs -mkdir /input
 ```
 
-##### b. 将一些文本文件复制到 HDFS
+##### b. Copy some text files into HDFS
 
-我们就用我们刚刚创建的 Hadoop 配置文件作为示例文本：
+Let's use our Hadoop configuration files as sample text:
 
 ```bash
 # (NameNode)
 hdfs dfs -put $HADOOP_HOME/etc/hadoop/*.xml /input
 ```
 
-##### c. 运行 WordCount 示例 JAR
+##### c. Run the WordCount example JAR
 
-  * `$HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.6.jar` 是示例程序。
-  * `wordcount` 是我们要运行的程序。
-  * `/input` 是 HDFS 上的输入目录。
-  * `/output` 是 HDFS 上的输出目录（**注意：此目录不能提前存在！**）
-
-<!-- end list -->
+*   `$HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.6.jar` is the example program.
+*   `wordcount` is the program we want to run.
+*   `/input` is the input directory on HDFS.
+*   `/output` is the output directory on HDFS (**Note: this directory must not exist beforehand!**)
 
 ```bash
 # (NameNode)
 hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.6.jar wordcount /input /output
 ```
 
-您将看到大量的日志输出，显示 MapReduce 作业的进度（Map 0% 100%, Reduce 0% 100%）。
+You will see a lot of log output showing the MapReduce job progress (Map 0% -> 100%, Reduce 0% -> 100%).
 
-##### d. 查看结果！
+##### d. View the results!
 
-如果作业成功，它会在 `/output` 目录中创建文件。
+If the job succeeded, it created files in the `/output` directory.
 
 ```bash
-# (NameNode) 列出输出文件
+# (NameNode) List the output files
 hdfs dfs -ls /output
 ```
 
-您应该会看到两个文件：一个空的 `_SUCCESS` 文件（表示作业成功）和一个 `part-r-00000` 文件（包含结果）。
+You should see two files: an empty `_SUCCESS` file (indicating success) and a `part-r-00000` file (containing the results).
 
 ```bash
-# (NameNode) 查看 WordCount 的最终结果
+# (NameNode) View the final WordCount result
 hdfs dfs -cat /output/part-r-00000
 ```
 
-您会看到 XML 标签及其在配置文件中出现的次数，例如：
+You will see the XML tags and their counts, e.g.:
 
 ```
 configuration   2
@@ -924,74 +883,61 @@ value   4
 ...
 ```
 
------
+---
 
-### 🎉 恭喜！
+### 🎉 Congratulations!
 
-您已经从零开始，在 KVM 上成功构建、配置、启动并验证了一个功能齐全的 3 节点 Hadoop 集群！
+You have successfully built, configured, started, and validated a fully functional 3-node Hadoop cluster from scratch on KVM! Your Hadoop "operating system" (HDFS+YARN) is 100% operational.
 
-现在您的 Hadoop“操作系统”（HDFS+YARN）已经 100% 正常运行了。**现在**是时候考虑下一步了，比如**安装 Spark** 并将其配置为在 YARN 上运行。
+---
 
-好的！您的 Hadoop 集群（HDFS + YARN）这个“集群操作系统”已经成功运行。现在是时候安装我们真正的“应用程序”—— Spark 了。
+### 🚀 Phase 6: Install Spark and Integrate with YARN
 
-我们将把 Spark 安装为 YARN 上的一个**应用程序**。这意味着：
+With your Hadoop cluster (HDFS + YARN) running, it's time to install Spark as an application on top of it. This is the standard and recommended deployment method for production environments.
 
-  * 我们**不会**运行 Spark 自己的主/从节点 (`start-master.sh` 等)。
-  * 我们会将 Spark 配置为**向 YARN 请求资源**。
-  * Hadoop 的 YARN（`ResourceManager`）将**全权负责**管理集群内存和 CPU，无论是 MapReduce 任务还是 Spark 任务。
+**Workflow:** Open your three terminals again:
 
-这是生产环境中最标准、最推荐的部署方式。
+*   **Terminal 1:** `ssh hadoop@hadoop-namenode`
+*   **Terminal 2:** `ssh hadoop@hadoop-datanode1`
+*   **Terminal 3:** `ssh hadoop@hadoop-datanode2`
 
------
+#### 1. (ALL) Download and Extract Spark
 
-### 🚀 阶段六：安装 Spark 并集成 YARN
+The Spark binaries need to exist on **all** nodes so YARN can launch Spark Executors on the DataNodes.
 
-**工作流程：** 再次打开您的三个终端：
-
-  * **终端 1:** `ssh hadoop@hadoop-namenode`
-  * **终端 2:** `ssh hadoop@hadoop-datanode1`
-  * **终端 3:** `ssh hadoop@hadoop-datanode2`
-
-我们用 `(ALL)` 和 `(NameNode)` 来标记命令。
-
-#### 1\. (ALL) 下载并解压 Spark
-
-为了让 YARN 在 DataNode 上启动 Spark 执行器 (Executors)，Spark 的二进制文件需要存在于**所有**节点上。
-
-> **(ALL)** 在所有三个终端中运行：
+> **(ALL)** Run in all three terminals:
 
 ```bash
-# 切换到主目录
+# Switch to home directory
 cd ~
 
-# 下载 Spark 3.4.1 (为 Hadoop 3 预编译的版本)
-# 注意：我们将使用 3.4.1，因为它与 Hadoop 3.3.6 配合良好
+# Download Spark 3.4.1 (pre-built for Hadoop 3)
 wget https://archive.apache.org/dist/spark/spark-3.4.1/spark-3.4.1-bin-hadoop3.tgz
 
-# 解压
+# Extract
 tar -xzf spark-3.4.1-bin-hadoop3.tgz
 
-# 移动到 /usr/local/ 并重命名为 spark
+# Move to /usr/local/ and rename to spark
 sudo mv spark-3.4.1-bin-hadoop3 /usr/local/spark
 
-# 更改所有权为 hadoop 用户
+# Change ownership to the hadoop user
 sudo chown -R hadoop:hadoop /usr/local/spark
 ```
 
------
+---
 
-#### 2\. (ALL) 设置 Spark 环境变量
+#### 2. (ALL) Set Spark Environment Variables
 
-就像 `HADOOP_HOME` 一样，我们需要为 `SPARK_HOME` 设置环境变量。
+Just like `HADOOP_HOME`, we need to set `SPARK_HOME`.
 
-> **(ALL)** 在所有三个终端中运行：
+> **(ALL)** Run in all three terminals:
 
 ```bash
-# 打开 .bashrc 文件
+# Open .bashrc file
 nano ~/.bashrc
 ```
 
-滚动到文件**最底部**（在 Hadoop 变量下面），添加：
+Scroll to the **very bottom** (below the Hadoop variables) and add:
 
 ```bash
 # Spark Home
@@ -999,56 +945,50 @@ export SPARK_HOME=/usr/local/spark
 export PATH=$PATH:$SPARK_HOME/bin
 ```
 
-保存并退出 (Ctrl+O, Ctrl+X)。然后**立即生效**：
+Save and exit (Ctrl+O, Ctrl+X). Then **apply immediately**:
 
 ```bash
-# (ALL) 运行
+# (ALL) Run
 source ~/.bashrc
 
-# (ALL) 验证
+# (ALL) Verify
 echo $SPARK_HOME
-# 应该输出: /usr/local/spark
+# Should output: /usr/local/spark
 ```
 
------
+---
 
-#### 3\. (NameNode) 配置 Spark 与 YARN 集成
+#### 3. (NameNode) Configure Spark to Integrate with YARN
 
-这是最关键的一步。我们**只在 NameNode 上**（我们提交任务的地方）执行此操作。
-
-Spark 需要知道 Hadoop 的配置文件在哪里，这样它才能找到 HDFS NameNode 和 YARN ResourceManager。
+This is the key step. We do this **only on the NameNode** (where we will submit jobs). Spark needs to know where to find Hadoop's configuration files to locate the HDFS NameNode and YARN ResourceManager.
 
 ```bash
-# (NameNode) 进入 Spark 配置目录
+# (NameNode) Go to Spark's configuration directory
 cd $SPARK_HOME/conf
 
-# 复制模板
+# Copy the template
 cp spark-env.sh.template spark-env.sh
 
-# 编辑 spark-env.sh
+# Edit spark-env.sh
 nano spark-env.sh
 ```
 
-在文件的**最底部**添加这一行。**这是连接 Spark 和 YARN 的魔法**：
+Add this line at the **very bottom** of the file. **This is the magic that connects Spark to YARN**:
 
 ```bash
-# 告诉 Spark 在哪里可以找到 Hadoop 的配置文件
+# Tell Spark where to find Hadoop's configuration files
 export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
 ```
 
-保存并退出。
+Save and exit. That's it! Spark is now configured as a YARN client.
 
-**就是这样！** Spark 现在被配置为 YARN 客户端。我们不需要在 `spark-defaults.conf` 中设置 `spark.master`，因为我们将在提交任务时在命令行上指定它，这在测试时更灵活。
+---
 
------
+### ✅ Verification: Run Spark Pi Example on YARN
 
-### ✅ 验证：运行 Spark Pi 示例 on YARN
+Let's run a sample program to calculate Pi, but **on the YARN cluster**, not locally.
 
-我们来运行一个计算 Pi 的示例程序，但**不是**在本地，而是**在 YARN 集群上**。
-
-> **(NameNode)** **只在 `hadoop-namenode` 终端**中运行：
-
-我们将使用 `spark-submit` 命令。
+> **(NameNode)** Run **only in the `hadoop-namenode` terminal**:
 
 ```bash
 # (NameNode)
@@ -1059,16 +999,15 @@ spark-submit \
     $SPARK_HOME/examples/jars/spark-examples_2.12-3.4.1.jar 10
 ```
 
-让我们分解一下这个命令：
+Let's break down the command:
+*   `--master yarn`: **"I want to run on YARN."** This is the key!
+*   `--deploy-mode cluster`: **"Please run my driver program on a DataNode in the cluster, not in my NameNode terminal."** This is the ultimate test for YARN.
+*   `--class ...SparkPi`: The main class to run.
+*   `...jar`: The JAR file containing the class.
+*   `10`: An argument passed to the SparkPi program.
 
-  * `--master yarn`：**"我请求在 YARN 上运行"**。这是关键！
-  * `--deploy-mode cluster`：**"请在 YARN 集群的某个 DataNode 上运行我的'驱动程序'(driver)，不要在我的 NameNode 终端上运行"**。这是对 YARN 的终极测试。
-  * `--class ...SparkPi`：要运行的主类。
-  * `...jar`：包含该类的 JAR 文件。
-  * `10`：传递给 SparkPi 程序的参数（切片数）。
-
-**您会看到什么：**
-`spark-submit` **不会**打印出 Pi 的结果。相反，它会向 YARN 提交作业，然后打印出一个**应用程序 ID**，如下所示：
+**What you will see:**
+`spark-submit` will **not** print the result of Pi. Instead, it submits the job to YARN and prints an **application ID**, like this:
 
 ```
 ...
@@ -1076,420 +1015,257 @@ spark-submit \
 ...
 ```
 
-**如何查看结果：**
+**How to see the result:**
 
-1.  **检查作业状态 (可选)：**
-
+1.  **Check job status (optional):**
     ```bash
     yarn application -status application_1668191234567_0001
     ```
 
-2.  **获取作业日志 (在这里看结果)：**
-    **这是您查看 "Pi is roughly 3.14..." 的地方。**
-
+2.  **Get job logs (this is where you see the result):**
     ```bash
-    # (请使用您自己的 application ID 替换)
+    # (Replace with your own application ID)
     yarn logs -applicationId application_1668191234567_0001
     ```
+    Scroll through the logs (they can be long), and in the `stdout` section, you will find the calculated value of Pi!
 
-    滚动日志（可能很长），在 `stdout` 部分，您会找到 Pi 的计算结果！
+---
 
------
+### 🌟 Ultimate Test: Spark Shell (HDFS + YARN)
 
-### 🌟 终极测试：Spark Shell (HDFS + YARN)
+Let's start an **interactive** Spark Shell that uses YARN as its backend and reads the files we created in HDFS during **Phase 5**.
 
-我们来启动一个**交互式** Spark Shell，它使用 YARN 作为后端，并从 HDFS 读取我们在**阶段五**中创建的文件。
-
-> **(NameNode)** **只在 `hadoop-namenode` 终端**中运行：
+> **(NameNode)** Run **only in the `hadoop-namenode` terminal**:
 
 ```bash
-# 启动一个连接到 YARN 的 Spark Shell
+# Start a Spark Shell connected to YARN
 spark-shell --master yarn
 ```
 
-这需要一两分钟，因为它正在向 YARN 请求资源来启动您的 shell 的执行器 (executors)。
+This may take a minute or two as it requests resources from YARN to start the shell's executors.
 
-一旦您看到 `scala>` 提示符，您就进入了交互式 shell：
+Once you see the `scala>` prompt, you are in the interactive shell:
 
 ```scala
-// (在 scala> 提示符后输入)
+// (Enter this at the scala> prompt)
 
-// 1. 读取我们在阶段五上传到 HDFS 的 core-site.xml 文件
+// 1. Read the core-site.xml file we uploaded to HDFS in Phase 5
 val hdfsFile = sc.textFile("/input/core-site.xml")
 
-// 2. 计算该文件中的行数
+// 2. Count the number of lines in the file
 hdfsFile.count()
 
-// 3. 打印前5行
+// 3. Print the first 5 lines
 hdfsFile.take(5).foreach(println)
 ```
 
-**如果 `hdfsFile.count()` 返回了一个数字（而不是错误），并且 `take(5)` 打印出了 XML 行...**
+If `hdfsFile.count()` returns a number (not an error) and `take(5)` prints XML lines...
 
-**🎉🎉🎉 恭喜！您已经 100% 成功了！🎉🎉🎉**
+**🎉🎉🎉 Congratulations! You have 100% succeeded! 🎉🎉🎉**
 
-您已经证明了：
+You have proven that:
+1.  Spark (`spark-shell`) can start.
+2.  It can communicate with YARN (`--master yarn`) to get computing resources.
+3.  The executors launched by YARN can communicate with HDFS (`sc.textFile("/input/...")`) to read data.
 
-1.  Spark (`spark-shell`) 可以启动。
-2.  它可以与 YARN (`--master yarn`) 通信以获取计算资源。
-3.  YARN 启动的执行器可以与 HDFS (`sc.textFile("/input/...")`) 通信以读取数据。
+Your KVM/Libvirt Hadoop + Spark cluster is now **fully configured and ready for use**.
 
-您的 KVM/Libvirt Hadoop + Spark 集群现已**完全配置并可供使用**。
+---
 
+### Q&A and Troubleshooting
 
-#### Q&A
+##### If I add a new datanode3 to the cluster, should I format HDFS?
 
-##### if I add new datanode3 to cluster,  should i format hdfs?
+No, you **absolutely do not** and **must not** format HDFS when adding a new DataNode.
 
+`hdfs namenode -format` is a **one-time, destructive** command that **only targets the NameNode**.
 
-不，您**绝对不需要**，也**绝对不能**在添加新的 DataNode 时格式化 HDFS。
+*   **Formatting** = "Create the master ledger (metadata) for the HDFS filesystem." This **erases** all existing data and creates a brand new, empty cluster.
+*   **Adding a DataNode** = "Add a new hard drive to the cluster."
 
-`hdfs namenode -format` 是一个**一次性**的、**毁灭性**的命令，**它只针对 NameNode**。
+**Correct Analogy:**
+*   **NameNode** is the "head librarian" with the "master card catalog."
+*   **DataNode** is a "bookshelf."
+*   `hdfs namenode -format` = The librarian **burns the old card catalog and replaces it with a new, blank one.**
+*   Adding a new `datanode3` = Simply **adding a new, empty bookshelf** to the library.
 
-  * **格式化 (Format)** = “创建 HDFS 文件系统的**主账本**（元数据）。” 这会**擦除**所有现有数据，创建一个全新的、空的集群。
-  * **添加 DataNode** = “为集群**增加一个硬盘驱动器**。”
+You never need to burn the card catalog just to add a new bookshelf.
 
-### 💡 正确的类比
+---
 
-  * **NameNode** 是“图书馆馆长”，它拿着“图书总目录”。
-  * **DataNode** 是“书架”。
-  * `hdfs namenode -format` = 馆长**烧掉了旧的“图书总目录”，换上了一本全新的、空白的目录**。
-  * 添加一个新的 `datanode3` = 只是在图书馆里**增加了一个新的空“书架”**。
+##### Correct Steps to Add a New DataNode (`datanode3`)
 
-您永远不需要为了增加一个新书架而烧掉总目录。您只需要告诉馆长（NameNode）这个新书架的存在即可。
-
------
-
-### 🚀 添加新 DataNode (`datanode3`) 的正确步骤
-
-当您想在**正在运行的**集群中添加 `datanode3` 时，您什么都不需要格式化。
-
-您需要这样做：
-
-1.  **准备新 VM：** 按照您之前的方法（克隆、配置静态IP `192.168.122.104`、设置主机名 `hadoop-datanode3`、禁用 cloud-init 等）准备好 `hadoop-datanode3`。
-2.  **安装软件：** 确保 `hadoop-datanode3` 上安装了完全相同版本的 Java 和 Hadoop。
-3.  **更新“员工”名单 (在 NameNode 上)：**
-      * **`hosts` 文件:** `sudo nano /etc/hosts`，添加 `datanode3` 的 IP 和主机名。
+1.  **Prepare the new VM:** Prepare `hadoop-datanode3` just as you did before (clone, configure static IP `192.168.122.104`, set hostname `hadoop-datanode3`, etc.).
+2.  **Install Software:** Ensure the exact same versions of Java and Hadoop are installed on `hadoop-datanode3`.
+3.  **Update "Employee" Lists (on NameNode):**
+    *   **`hosts` file:** `sudo nano /etc/hosts`, add the IP and hostname for `datanode3`.
         ```
         192.168.122.104  hadoop-datanode3
         ```
-      * **`workers` 文件:** `nano $HADOOP_HOME/etc/hadoop/workers`，在文件末尾添加新的一行：
+    *   **`workers` file:** `nano $HADOOP_HOME/etc/hadoop/workers`, add a new line at the end:
         ```
         hadoop-datanode1
         hadoop-datanode2
         hadoop-datanode3
         ```
-4.  **分发配置 (在 NameNode 上)：**
-      * 将 NameNode 上**所有**的配置文件（`/etc/hadoop/`）和更新后的 `hosts` 文件复制到**新的** `datanode3` `datanode1` `datanode2` 上，确保它的配置与集群一致。
-      * `scp -r $HADOOP_HOME/etc/hadoop/* hadoop-datanode3:$HADOOP_HOME/etc/hadoop/`
-      * `scp /etc/hosts hadoop-datanode3:/etc/hosts` (可能需要 `sudo` 权限)
-5.  **授予 SSH 访问权限 (在 NameNode 上)：**
-      * `ssh-copy-id hadoop@hadoop-datanode3` (输入 `hadoop` 用户的密码)。
-6.  **启动新的 DataNode：**
-      * **最简单的方法 (推荐)：** 在 NameNode 上，**重启 HDFS 服务**。它会自动读取更新后的 `workers` 文件并启动**所有** DataNode，包括新的 `datanode3`。
+4.  **Distribute Configurations (on NameNode):**
+    *   Copy **all** configuration files (`/etc/hadoop/`) and the updated `hosts` file from the NameNode to the **new** `datanode3`, `datanode1`, and `datanode2` to ensure consistency.
+    *   `scp -r $HADOOP_HOME/etc/hadoop/* hadoop-datanode3:$HADOOP_HOME/etc/hadoop/`
+    *   `scp /etc/hosts hadoop-datanode3:/etc/hosts` (may require `sudo` permissions)
+5.  **Grant SSH Access (on NameNode):**
+    *   `ssh-copy-id hadoop@hadoop-datanode3` (enter the `hadoop` user's password).
+6.  **Start the New DataNode:**
+    *   **Easiest Method (Recommended):** On the NameNode, **restart the HDFS services**. It will automatically read the updated `workers` file and start **all** DataNodes, including the new `datanode3`.
         ```bash
         # (NameNode)
         stop-dfs.sh
         start-dfs.sh
         ```
-      * **高级方法 (不停机)：** 您也可以**只启动**新的 DataNode。
-        ```bash
-        # (NameNode)
-        hdfs --daemon start datanode hadoop-datanode3
-        ```
-7.  **验证 (在 NameNode 上)：**
-      * 等待一两分钟，然后运行 HDFS 报告：
+7.  **Verify (on NameNode):**
+    *   Wait a minute, then run the HDFS report:
         ```bash
         hdfs dfsadmin -report
         ```
-      * 在输出中，您现在应该能看到 **"Live Datanodes (3):"** 的字样。
+    *   In the output, you should now see **"Live Datanodes (3):"**.
 
-**总结：格式化 (Format) 只针对 NameNode，并且在集群生命周期中只做一次。添加 DataNode 永远不需要格式化。**
+**Summary: Formatting is for the NameNode only and is done once in the cluster's lifetime. Adding DataNodes never requires formatting.**
 
-##### convert qcow2 to raw image file
+---
 
-您可以使用 `qemu-img` 命令行工具来完成这个转换。
+##### How to convert a qcow2 to a raw image file
 
-### 转换命令
+You can use the `qemu-img` command-line tool for this conversion.
 
-这是最常用的命令：
-
+**Command:**
 ```bash
 qemu-img convert -f qcow2 -O raw image-name.qcow2 image-name.raw
 ```
 
------
+**Command Breakdown:**
+*   `qemu-img convert`: The command to convert an image.
+*   `-f qcow2`: **(Optional)** Specifies the input format. `qemu-img` is usually smart enough to detect this.
+*   `-O raw`: **(Required)** Specifies the output format as `raw`.
+*   `image-name.qcow2`: Your source file.
+*   `image-name.raw`: Your desired output file.
 
-### 命令分解
+**⚠️ Important Warning: Disk Space**
+*   **qcow2 (Thin Provisioning):** A 100GB virtual disk with only 5GB of data might only take up 5-6GB of space on the host.
+*   **raw (Thick Provisioning):** When you convert to `raw`, the output file will **immediately occupy the full virtual size** of the disk.
 
-  * `qemu-img convert`：调用 `qemu-img` 工具并使用 `convert`（转换）子命令。
-  * `-f qcow2`：**（可选）** 指定**输入**格式 (format)。`qemu-img` 通常足够智能，可以自动检测到 `qcow2` 格式，所以您可以省略这一部分。
-  * `-O raw`：**（必需）** 指定**输出** (Output) 格式为 `raw`。
-  * `image-name.qcow2`：您的源文件名。
-  * `image-name.raw`：您想要的输出文件名。
+**Example:**
+A `100GB` (virtual size) `qcow2` file (using 6GB) -> converted to `raw` -> a `100GB` (using 100GB) `raw` file.
 
-### ⚠️ 重要警告：空间占用
+**Always** check your available host disk space with `df -h` before converting.
 
-在执行此操作之前，您必须了解一个关键区别：
+---
 
-  * **qcow2 (精简配置):** 如果您有一个 100GB 的虚拟磁盘，但只在其中安装了 5GB 的 Ubuntu，`qcow2` 文件在宿主机上可能只占用 5-6GB 的空间。
-  * **raw (厚配置):** 当您转换为 `raw` 格式时，输出文件将**立即占用该磁盘的全部虚拟大小**。
+##### Error: `qemu-kvm: -drive file=...: driver 'qcow2' can't be used with a RAW file`
 
-**示例：**
-`100GB` (虚拟大小) 的 `qcow2` 文件 (实际占用 6GB) -\> 转换为 `raw` -\> `100GB` (实际占用 100GB) 的 `raw` 文件。
+This error means your Libvirt XML configuration is telling QEMU to use the `qcow2` driver, but the disk file itself is in `raw` format. This mismatch happens if you converted the disk image but didn't update the VM's configuration.
 
-在转换之前，请**务必**使用 `df -h` 检查您的宿主机，确保您有足够的可用空间来容纳**整个**虚拟磁盘的完整大小。
+**Solution: Update the VM's XML**
 
-这个错误非常明确，而且很可能与我们上一个关于 `qcow2` 转换为 `raw` 的对话直接相关。
-
-**您的 Libvirt XML 配置文件（`hadoop-namenode.xml`）告诉 QEMU：“请使用 `qcow2` 驱动程序来加载一个磁盘文件。”**
-
-**但 QEMU 回答说：“您给我的这个文件*不是* `qcow2` 格式！”**
-
-这 99% 是因为您**已经**将您的磁盘文件从 `.qcow2` 转换为了 `.raw`，但**没有更新 VM 的 XML 配置**来告诉 Libvirt 这个变化。
-
------
-
-### 🚀 解决方案：更新 VM 的 XML
-
-您需要编辑 `hadoop-namenode` 的 Libvirt XML 文件，将磁盘驱动程序类型从 `qcow2` 更改为 `raw`。
-
-1.  **在您的宿主机（Host）终端**（不是 VM 内部）中，运行 `virsh edit`：
-
+1.  **On your host machine**, run `virsh edit`:
     ```bash
     virsh edit hadoop-namenode
     ```
-
-    这会打开一个 XML 编辑器（通常是 `vi` 或 `nano`）。
-
-2.  **找到 `<disk>` 部分。** 它看起来会像这样：
-
-    **之前（错误配置）：**
-
+2.  **Find the `<disk>` section.** It will look something like this:
+    **Before (Incorrect):**
     ```xml
     <disk type='file' device='disk'>
       <driver name='qemu' type='qcow2'/>
       <source file='/var/lib/libvirt/images/hadoop-namenode.qcow2'/>
-      <target dev='vda' bus='virtio'/>
       ...
     </disk>
     ```
-
-3.  **进行修改。** 您需要更改**两处**：
-
-      * `type='qcow2'` 必须改为 `type='raw'`。
-      * `<source file=...>` 必须指向您**新**的 `.raw` 文件名。
-
-    **之后（正确配置）：**
-
+3.  **Make two changes:**
+    *   Change `type='qcow2'` to `type='raw'`.
+    *   Update the `<source file=...>` to point to your new `.raw` filename.
+    **After (Correct):**
     ```xml
     <disk type='file' device='disk'>
       <driver name='qemu' type='raw'/>
       <source file='/var/lib/libvirt/images/hadoop-namenode.raw'/>
-      <target dev='vda' bus='virtio'/>
       ...
     </disk>
     ```
-
-    *(您的 `<source file=...>` 路径可能不同，请确保它指向您转换后的 `.raw` 文件的正确位置)*
-
-4.  **保存并退出**编辑器。
-
-5.  **现在再次尝试启动 VM：**
-
+4.  **Save and exit** the editor.
+5.  **Try starting the VM again:**
     ```bash
     virsh start hadoop-namenode
     ```
 
------
+---
 
-### 🤔 如何确认？
+##### Error: Datanode shuts down, log shows "Incompatible Jackson version" or "Datanode UUID mismatch"
 
-如果您不确定您的文件到底是什么格式，您可以在宿主机上使用 `qemu-img info` 来检查：
+**Diagnosis: Datanode UUID Conflict**
+The NameNode log shows it's rejecting a DataNode because its storage ID is already registered to another DataNode with a different IP.
 
-```bash
-# 检查您的 .raw 文件
-qemu-img info /var/lib/libvirt/images/hadoop-namenode.raw
-# 它应该会报告: file format: raw
+**Root Cause:**
+This happens when you clone a VM (e.g., cloning `datanode1` to create `datanode3`) and also clone the Hadoop data directory (`/usr/local/hadoop/data/datanode`). This directory contains a `VERSION` file with a unique `datanodeUuid`. Cloning results in multiple DataNodes having the same UUID. The NameNode will only allow the first one that registers to connect.
 
-# 检查您（可能存在的）旧 .qcow2 文件
-qemu-img info /var/lib/libvirt/images/hadoop-namenode.qcow2
-# 它应该会报告: file format: qcow2
-```
+**Solution: Clear DataNode Storage and Regenerate IDs**
+**Important:** This only applies to the **DataNode** data directories. **Do NOT** touch the NameNode's data directory (`/usr/local/hadoop/data/namenode`).
 
-这个错误几乎总是由 XML 中的 `type` 与磁盘文件的**实际**格式不匹配引起的。
-
-
-### clone datanode image and error with datanode
-这个日志太完美了！它**精确**地告诉了我们问题所在。
-
-### 诊断：Datanode UUID 冲突
-
-简单来说，这是 NameNode 的日志：
-
-> **NameNode (日志):** “一个自称是 `192.168.122.102` (`datanode1`) 的节点刚刚联系我。但它使用的存储 ID (`f96d...83bf`) 在我的记录里属于 `192.168.122.104` (`datanode3`)。这家伙是个**冒名顶替者**！我拒绝它的连接。”
-
-然后 `datanode1` 收到拒绝后，就自动关闭了 (SHUTDOWN\_MSG)。
-
-### 根本原因
-
-这个问题 100% 是因为您在**克隆虚拟机**时（例如，从 `datanode1` 克隆出 `datanode3`，或者它们都是从同一个模板克隆的），**也克隆了 Hadoop 的数据目录**。
-
-`/usr/local/hadoop/data/datanode`
-
-在这个目录里，有一个文件（`VERSION` 文件）包含一个**唯一的** `datanodeUuid`。因为您克隆了它，所以 `datanode1` 和 `datanode3` 有了**完全相同**的 UUID。
-
-在集群启动时，`datanode3` (192.168.122.104) *先*注册了，NameNode 就把这个 UUID 分配给了它。当 `datanode1` (192.168.122.102) *后*来尝试用同一个 UUID 注册时，NameNode 就把它踢出去了。
-
------
-
-### 解决方案：清空并重生
-
-解决方案是强制所有 DataNode 忘记它们旧的（重复的）ID，并生成**新的、唯一的** ID。
-
-**重要：** 我们**只**清空 DataNode 上的数据目录。**请勿**触摸 NameNode 上的 `/usr/local/hadoop/data/namenode` 目录！
-
-#### 1\. (NameNode) 停止所有服务
-
-首先，在您的 `hadoop-namenode` 终端上彻底停止集群：
-
-```bash
-# (NameNode)
-stop-yarn.sh
-stop-dfs.sh
-```
-
-#### 2\. (ALL DataNodes) 清理 DataNode 数据
-
-您必须在**所有** DataNode（datanode1, datanode2, datanode3）上执行此操作，以确保它们都生成新 ID。
-
-> **(DataNode 1)** 在 `hadoop-datanode1` 终端：
->
-> ```bash
-> # 1. 删除旧的数据目录（包含重复的 UUID）
-> rm -rf /usr/local/hadoop/data/datanode
-> ```
-
-> # 2\. 重新创建空目录
->
-> mkdir -p /usr/local/hadoop/data/datanode
->
-> ```
-> ```
-
-> **(DataNode 2)** 在 `hadoop-datanode2` 终端（即使它现在看起来没问题，它也可能有重复的 ID）：
->
-> ```bash
-> # 1. 删除旧的数据目录
-> rm -rf /usr/local/hadoop/data/datanode
-> ```
-
-> # 2\. 重新创建空目录
->
-> mkdir -p /usr/local/hadoop/data/datanode
->
-> ```
-> ```
-
-> **(DataNode 3)** 在 `hadoop-datanode3` 终端：
->
-> ```bash
-> # 1. 删除旧的数据目录
-> rm -rf /usr/local/hadoop/data/datanode
-> ```
-
-> # 2\. 重新创建空目录
->
-> mkdir -p /usr/local/hadoop/data/datanode
->
-> ```
-> ```
-
-#### 3\. (NameNode) 重启 HDFS
-
-现在所有 DataNode 都是“干净”的了。回到 `hadoop-namenode` 终端启动 HDFS：
-
-```bash
-# (NameNode)
-start-dfs.sh
-```
-
-当 HDFS 启动时：
-
-1.  `datanode1` 启动，发现 `/usr/local/hadoop/data/datanode` 是空的。
-2.  它会**生成一个全新的、唯一的 UUID**。
-3.  它使用这个**新** ID 向 NameNode 注册，NameNode 会接受它。
-4.  `datanode2` 和 `datanode3` 也会重复这个过程。
-
-#### 4\. (NameNode) 验证
-
-等待 10-15 秒，让所有节点完成注册。
-
-1.  **在 `hadoop-datanode1` 上运行 `jps`**：
-
+1.  **(NameNode)** Stop all services:
     ```bash
-    jps
+    # (NameNode)
+    stop-yarn.sh
+    stop-dfs.sh
     ```
-
-    您现在应该能看到 `DataNode` 进程了！
-
-2.  **在 NameNode 上查看报告 (最终确认)**：
-
+2.  **(ALL DataNodes)** On **every** DataNode (datanode1, datanode2, datanode3), clean the data directory:
+    ```bash
+    # (On each DataNode)
+    # 1. Remove the old data directory (with the duplicate UUID)
+    rm -rf /usr/local/hadoop/data/datanode
+    # 2. Recreate the empty directory
+    mkdir -p /usr/local/hadoop/data/datanode
+    ```
+3.  **(NameNode)** Restart HDFS:
+    ```bash
+    # (NameNode)
+    start-dfs.sh
+    ```
+    When the DataNodes start, they will find their data directory is empty, generate a new unique UUID, and register successfully with the NameNode.
+4.  **(NameNode)** Verify:
+    Wait a few moments, then check the report:
     ```bash
     # (NameNode)
     hdfs dfsadmin -report
     ```
+    You should see **"Live Datanodes (3):"** in the report. You can also run `jps` on each DataNode to confirm the `DataNode` process is running.
 
-    您应该会在报告中看到 **"Live Datanodes (3):"**。
+---
 
------
+##### HDFS capacity is lower than assigned disk space
 
-问题解决后，您就可以继续运行 `start-yarn.sh` 并继续您的 Spark 测试了。
+If `lsblk` on a DataNode shows unallocated space in the logical volume, you need to extend the filesystem.
 
-#### the hdfs capacity is lower than assigned
-
-ssh to datanade
-
-lsblk
-
-found not all space allocated to /
+**Solution:**
 ```shell
-hadoop@hadoop-datanode1:~$ lsblk
-NAME                      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
-loop0                       7:0    0 63.9M  1 loop /snap/core20/2318
-loop1                       7:1    0   87M  1 loop /snap/lxd/29351
-loop2                       7:2    0 91.4M  1 loop /snap/lxd/35819
-loop3                       7:3    0 38.8M  1 loop /snap/snapd/21759
-loop4                       7:4    0 50.9M  1 loop /snap/snapd/25577
-loop5                       7:5    0 63.8M  1 loop /snap/core20/2682
-sr0                        11:0    1 1024M  0 rom  
-vda                       252:0    0   60G  0 disk 
-├─vda1                    252:1    0    1G  0 part /boot/efi
-├─vda2                    252:2    0    2G  0 part /boot
-└─vda3                    252:3    0 56.9G  0 part 
-  └─ubuntu--vg-ubuntu--lv 253:0    0 28.5G  0 lvm  /
-```
+# (Run on each affected DataNode)
 
-solution
-```shell
-# (在 datanode1, datanode2, 和 datanode3 上分别运行)
-
-# 1. 将逻辑卷扩展到 100% 的可用空间
+# 1. Extend the logical volume to use 100% of the free space
 sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
 
-# 2. 调整文件系统大小以匹配新的卷大小
+# 2. Resize the filesystem to match the new volume size
 sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
 ```
 
-use on hostmachine, when submit spark jobs, permission deny
+---
 
-solution:
+##### Permission denied when submitting Spark jobs from host machine
 
+**Solution:**
+Set the `HADOOP_USER_NAME` environment variable to match the user running the Hadoop cluster.
 ```shell
 export HADOOP_USER_NAME=hadoop
 ```
 
-exit safe mode
+---
+
+##### How to exit safe mode
 
 ```shell
 hdfs dfsadmin -safemode leave

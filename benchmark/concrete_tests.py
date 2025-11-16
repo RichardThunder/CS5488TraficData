@@ -213,11 +213,7 @@ class PandasBusyRoadTest(BaseAnalysisTest):
 
         logger.info("Preprocessing: extracting hour from period_from and selecting columns")
         analysis_df = cleaned_spark.withColumn("hour", hour(col("period_from"))).select(
-            col("Road_EN"),
-            col("District"),
-            col("volume").cast(IntegerType()).alias("volume"),
-            col("occupancy").cast(IntegerType()).alias("occupancy"),
-            col("hour")
+            "Road_EN", "District", "volume", "occupancy", "hour"
         )
 
         logger.info("Converting to Pandas DataFrame")

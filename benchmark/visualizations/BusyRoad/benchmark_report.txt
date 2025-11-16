@@ -4,7 +4,7 @@ BENCHMARK ANALYSIS REPORT
 
 1. OVERVIEW
 --------------------------------------------------------------------------------
-Total test runs: 75
+Total test runs: 63
 Tools tested: Hive-BusyRoad, Pandas-BusyRoad, PySpark-BusyRoad
 Dataset sizes: [np.float64(10.0), np.float64(20.0), np.float64(30.0), np.float64(40.0), np.float64(50.0), np.float64(60.0), np.float64(70.0), np.float64(80.0), np.float64(90.0)]
 Phases tracked: Clean Data, Cleanup, Execute Analysis, Initialize, Read Data, Total Execution
@@ -13,70 +13,70 @@ Phases tracked: Clean Data, Cleanup, Execute Analysis, Initialize, Read Data, To
 --------------------------------------------------------------------------------
 
 Hive-BusyRoad:
-  Average execution time: 9.02s
-  Min execution time: 3.56s
-  Max execution time: 14.65s
-  Total runs: 31
+  Average execution time: 9.25s
+  Min execution time: 3.43s
+  Max execution time: 15.05s
+  Total runs: 26
 
 Pandas-BusyRoad:
-  Average execution time: 61.38s
-  Min execution time: 30.11s
-  Max execution time: 93.63s
-  Total runs: 13
+  Average execution time: 56.09s
+  Min execution time: 28.81s
+  Max execution time: 83.18s
+  Total runs: 11
 
 PySpark-BusyRoad:
-  Average execution time: 56.49s
-  Min execution time: 16.42s
-  Max execution time: 98.02s
-  Total runs: 31
+  Average execution time: 57.30s
+  Min execution time: 15.52s
+  Max execution time: 100.73s
+  Total runs: 26
 
 3. FASTEST TOOL BY DATASET SIZE
 --------------------------------------------------------------------------------
-10% dataset: Hive-BusyRoad (3.56s)
-20% dataset: Hive-BusyRoad (4.64s)
-30% dataset: Hive-BusyRoad (6.01s)
-40% dataset: Hive-BusyRoad (7.69s)
-50% dataset: Hive-BusyRoad (9.04s)
-60% dataset: Hive-BusyRoad (10.48s)
-70% dataset: Hive-BusyRoad (11.80s)
-80% dataset: Hive-BusyRoad (13.34s)
-90% dataset: Hive-BusyRoad (14.65s)
+10% dataset: Hive-BusyRoad (3.43s)
+20% dataset: Hive-BusyRoad (4.59s)
+30% dataset: Hive-BusyRoad (6.27s)
+40% dataset: Hive-BusyRoad (7.96s)
+50% dataset: Hive-BusyRoad (9.52s)
+60% dataset: Hive-BusyRoad (10.83s)
+70% dataset: Hive-BusyRoad (12.03s)
+80% dataset: Hive-BusyRoad (13.58s)
+90% dataset: Hive-BusyRoad (15.05s)
 
 4. PHASE ANALYSIS (AVERAGE TIMES)
 --------------------------------------------------------------------------------
 
 Read Data:
-  Hive-BusyRoad: 0.058s (avg)
-  Pandas-BusyRoad: 0.064s (avg)
-  PySpark-BusyRoad: 0.256s (avg)
+  Hive-BusyRoad: 0.059s (avg)
+  Pandas-BusyRoad: 0.060s (avg)
+  PySpark-BusyRoad: 0.199s (avg)
 
 Clean Data:
-  Hive-BusyRoad: 0.006s (avg)
-  Pandas-BusyRoad: 56.366s (avg)
-  PySpark-BusyRoad: 45.085s (avg)
+  Hive-BusyRoad: 0.005s (avg)
+  Pandas-BusyRoad: 54.211s (avg)
+  PySpark-BusyRoad: 45.716s (avg)
 
 Execute Analysis:
-  Hive-BusyRoad: 8.839s (avg)
-  Pandas-BusyRoad: 4.822s (avg)
-  PySpark-BusyRoad: 10.965s (avg)
+  Hive-BusyRoad: 9.067s (avg)
+  Pandas-BusyRoad: 1.700s (avg)
+  PySpark-BusyRoad: 11.214s (avg)
 
 5. SCALABILITY INSIGHTS
 --------------------------------------------------------------------------------
 
 Hive-BusyRoad:
   Dataset size increased: 9.0x
-  Execution time increased: 4.1x
-  Scaling efficiency: 2.18 (1.0 = perfect linear)
+  Execution time increased: 4.4x
+  Scaling efficiency: 2.05 (1.0 = perfect linear)
 
 Pandas-BusyRoad:
   Dataset size increased: 3.0x
-  Execution time increased: 3.1x
-  Scaling efficiency: 0.96 (1.0 = perfect linear)
+  Execution time increased: 2.9x
+  Scaling efficiency: 1.04 (1.0 = perfect linear)
 
 PySpark-BusyRoad:
   Dataset size increased: 9.0x
-  Execution time increased: 6.0x
-  Scaling efficiency: 1.51 (1.0 = perfect linear)
+  Execution time increased: 6.5x
+  Scaling efficiency: 1.39 (1.0 = perfect linear)
 
 6. RECOMMENDATIONS
 --------------------------------------------------------------------------------

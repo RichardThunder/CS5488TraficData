@@ -37,6 +37,10 @@ def load_data(csv_path):
     # Convert duration to float if needed
     df['duration_seconds'] = pd.to_numeric(df['duration_seconds'], errors='coerce')
 
+    # Extract framework and analysis type from tool name
+    # Tool format: "Framework-AnalysisType" (e.g., "PySpark-BusyRoad")
+    df[['framework', 'analysis_type']] = df['tool'].str.split('-', n=1, expand=True)
+
     return df
 
 def get_summary_stats(df):
@@ -286,12 +290,28 @@ def plot_speedup_ratios(avg_times, output_dir):
 
     fig, ax = plt.subplots(figsize=(14, 6))
 
-    # Compare PySpark vs others
-    comparisons = [
-        ('PySpark-BusyRoad', 'Hive-BusyRoad', 'PySpark vs Hive'),
-        ('PySpark-BusyRoad', 'Pandas-BusyRoad', 'PySpark vs Pandas'),
-        ('Hive-BusyRoad', 'Pandas-BusyRoad', 'Hive vs Pandas')
-    ]
+    # Get unique tools (which are now just framework names within same analysis type)
+    tools = sorted(avg_times['tool'].unique())
+
+    # Generate all pairwise comparisons
+    comparisons = []
+    if 'PySpark' in [t.split('-')[0] for t in tools] and 'Hive' in [t.split('-')[0] for t in tools]:
+        pyspark_tool = [t for t in tools if t.split('-')[0] == 'PySpark'][0] if [t for t in tools if t.split('-')[0] == 'PySpark'] else None
+        hive_tool = [t for t in tools if t.split('-')[0] == 'Hive'][0] if [t for t in tools if t.split('-')[0] == 'Hive'] else None
+        if pyspark_tool and hive_tool:
+            comparisons.append((pyspark_tool, hive_tool, 'PySpark vs Hive'))
+
+    if 'PySpark' in [t.split('-')[0] for t in tools] and 'Pandas' in [t.split('-')[0] for t in tools]:
+        pyspark_tool = [t for t in tools if t.split('-')[0] == 'PySpark'][0] if [t for t in tools if t.split('-')[0] == 'PySpark'] else None
+        pandas_tool = [t for t in tools if t.split('-')[0] == 'Pandas'][0] if [t for t in tools if t.split('-')[0] == 'Pandas'] else None
+        if pyspark_tool and pandas_tool:
+            comparisons.append((pyspark_tool, pandas_tool, 'PySpark vs Pandas'))
+
+    if 'Hive' in [t.split('-')[0] for t in tools] and 'Pandas' in [t.split('-')[0] for t in tools]:
+        hive_tool = [t for t in tools if t.split('-')[0] == 'Hive'][0] if [t for t in tools if t.split('-')[0] == 'Hive'] else None
+        pandas_tool = [t for t in tools if t.split('-')[0] == 'Pandas'][0] if [t for t in tools if t.split('-')[0] == 'Pandas'] else None
+        if hive_tool and pandas_tool:
+            comparisons.append((hive_tool, pandas_tool, 'Hive vs Pandas'))
 
     for base_tool, compare_tool, label in comparisons:
         speedups = []
@@ -442,8 +462,8 @@ def main():
 
     # Setup paths
     csv_path = "benchmark/all_test.csv"
-    output_dir = "benchmark/visualizations"
-    Path(output_dir).mkdir(exist_ok=True)
+    base_output_dir = "benchmark/visualizations"
+    Path(base_output_dir).mkdir(exist_ok=True)
 
     # Load data
     print("Loading data...")
@@ -451,32 +471,56 @@ def main():
     print(f"✓ Loaded {len(df)} records from {csv_path}")
     print(f"  - Unique test runs: {df['uuid'].nunique()}")
     print(f"  - Tools: {', '.join(sorted(df['tool'].unique()))}")
+    print(f"  - Analysis types: {', '.join(sorted(df['analysis_type'].unique()))}")
+    print(f"  - Frameworks: {', '.join(sorted(df['framework'].unique()))}")
     print(f"  - Dataset sizes: {sorted(df['dataset_pct'].dropna().unique())}\n")
 
-    # Calculate summaries
-    print("Calculating summaries...")
-    avg_times = get_total_execution_times(df)
-    phase_data = get_phase_breakdown(df)
-    print(f"✓ Processed {len(avg_times)} test configurations\n")
+    # Process each analysis type separately
+    analysis_types = sorted(df['analysis_type'].unique())
 
-    # Generate visualizations
-    print("Generating visualizations...")
-    plot_total_execution_comparison(avg_times, output_dir)
-    plot_phase_breakdown(phase_data, output_dir)
-    plot_scalability_analysis(avg_times, output_dir)
-    plot_phase_comparison(phase_data, output_dir)
-    plot_heatmap_comparison(avg_times, output_dir)
-    plot_speedup_ratios(avg_times, output_dir)
+    for analysis_type in analysis_types:
+        print("\n" + "=" * 80)
+        print(f"PROCESSING: {analysis_type.upper()} ANALYSIS")
+        print("=" * 80 + "\n")
 
-    print("\n" + "=" * 80)
-    print("Generating statistics report...")
-    print("=" * 80)
-    generate_statistics_report(df, avg_times, phase_data, output_dir)
+        # Filter data for this analysis type
+        df_filtered = df[df['analysis_type'] == analysis_type].copy()
+
+        # Create separate output directory for this analysis type
+        output_dir = f"{base_output_dir}/{analysis_type}"
+        Path(output_dir).mkdir(exist_ok=True)
+
+        print(f"Analyzing {analysis_type}...")
+        print(f"  - Records: {len(df_filtered)}")
+        print(f"  - Test runs: {df_filtered['uuid'].nunique()}")
+        print(f"  - Frameworks: {', '.join(sorted(df_filtered['framework'].unique()))}\n")
+
+        # Calculate summaries
+        print("Calculating summaries...")
+        avg_times = get_total_execution_times(df_filtered)
+        phase_data = get_phase_breakdown(df_filtered)
+        print(f"✓ Processed {len(avg_times)} test configurations\n")
+
+        # Generate visualizations
+        print("Generating visualizations...")
+        plot_total_execution_comparison(avg_times, output_dir)
+        plot_phase_breakdown(phase_data, output_dir)
+        plot_scalability_analysis(avg_times, output_dir)
+        plot_phase_comparison(phase_data, output_dir)
+        plot_heatmap_comparison(avg_times, output_dir)
+        plot_speedup_ratios(avg_times, output_dir)
+
+        print("\n" + "-" * 80)
+        print(f"Generating statistics report for {analysis_type}...")
+        print("-" * 80)
+        generate_statistics_report(df_filtered, avg_times, phase_data, output_dir)
 
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE!")
     print("=" * 80)
-    print(f"\nAll visualizations and reports saved to: {output_dir}/")
+    print(f"\nAll visualizations and reports saved to:")
+    for analysis_type in analysis_types:
+        print(f"  - {base_output_dir}/{analysis_type}/")
 
 if __name__ == "__main__":
     main()

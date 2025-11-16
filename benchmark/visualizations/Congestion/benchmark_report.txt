@@ -4,19 +4,13 @@ BENCHMARK ANALYSIS REPORT
 
 1. OVERVIEW
 --------------------------------------------------------------------------------
-Total test runs: 85
-Tools tested: Hive-BusyRoad, Hive-Congestion, Pandas-BusyRoad, Pandas-Congestion, PySpark-BusyRoad, PySpark-Congestion
-Dataset sizes: [np.float64(10.0), np.float64(20.0), np.float64(30.0), np.float64(40.0), np.float64(50.0), np.float64(60.0), np.float64(70.0), np.float64(80.0), np.float64(90.0)]
+Total test runs: 10
+Tools tested: Hive-Congestion, Pandas-Congestion, PySpark-Congestion
+Dataset sizes: [np.float64(10.0), np.float64(20.0), np.float64(30.0)]
 Phases tracked: Clean Data, Cleanup, Execute Analysis, Initialize, Read Data, Total Execution
 
 2. OVERALL PERFORMANCE SUMMARY
 --------------------------------------------------------------------------------
-
-Hive-BusyRoad:
-  Average execution time: 9.02s
-  Min execution time: 3.56s
-  Max execution time: 14.65s
-  Total runs: 31
 
 Hive-Congestion:
   Average execution time: 3.73s
@@ -24,23 +18,11 @@ Hive-Congestion:
   Max execution time: 4.48s
   Total runs: 4
 
-Pandas-BusyRoad:
-  Average execution time: 61.38s
-  Min execution time: 30.11s
-  Max execution time: 93.63s
-  Total runs: 13
-
 Pandas-Congestion:
   Average execution time: 110.43s
   Min execution time: 110.43s
   Max execution time: 110.43s
   Total runs: 2
-
-PySpark-BusyRoad:
-  Average execution time: 56.49s
-  Min execution time: 16.42s
-  Max execution time: 98.02s
-  Total runs: 31
 
 PySpark-Congestion:
   Average execution time: 18.40s
@@ -52,62 +34,31 @@ PySpark-Congestion:
 --------------------------------------------------------------------------------
 10% dataset: Hive-Congestion (2.99s)
 20% dataset: Hive-Congestion (4.48s)
-30% dataset: Hive-BusyRoad (6.01s)
-40% dataset: Hive-BusyRoad (7.69s)
-50% dataset: Hive-BusyRoad (9.04s)
-60% dataset: Hive-BusyRoad (10.48s)
-70% dataset: Hive-BusyRoad (11.80s)
-80% dataset: Hive-BusyRoad (13.34s)
-90% dataset: Hive-BusyRoad (14.65s)
 
 4. PHASE ANALYSIS (AVERAGE TIMES)
 --------------------------------------------------------------------------------
 
 Read Data:
-  Hive-BusyRoad: 0.058s (avg)
   Hive-Congestion: 0.073s (avg)
-  Pandas-BusyRoad: 0.064s (avg)
   Pandas-Congestion: 0.072s (avg)
-  PySpark-BusyRoad: 0.256s (avg)
   PySpark-Congestion: 0.069s (avg)
 
 Clean Data:
-  Hive-BusyRoad: 0.006s (avg)
   Hive-Congestion: 0.014s (avg)
-  Pandas-BusyRoad: 56.366s (avg)
   Pandas-Congestion: 107.257s (avg)
-  PySpark-BusyRoad: 45.085s (avg)
   PySpark-Congestion: 14.911s (avg)
 
 Execute Analysis:
-  Hive-BusyRoad: 8.839s (avg)
   Hive-Congestion: 3.515s (avg)
-  Pandas-BusyRoad: 4.822s (avg)
-  PySpark-BusyRoad: 10.965s (avg)
   PySpark-Congestion: 3.288s (avg)
 
 5. SCALABILITY INSIGHTS
 --------------------------------------------------------------------------------
 
-Hive-BusyRoad:
-  Dataset size increased: 9.0x
-  Execution time increased: 4.1x
-  Scaling efficiency: 2.18 (1.0 = perfect linear)
-
 Hive-Congestion:
   Dataset size increased: 2.0x
   Execution time increased: 1.5x
   Scaling efficiency: 1.34 (1.0 = perfect linear)
-
-Pandas-BusyRoad:
-  Dataset size increased: 3.0x
-  Execution time increased: 3.1x
-  Scaling efficiency: 0.96 (1.0 = perfect linear)
-
-PySpark-BusyRoad:
-  Dataset size increased: 9.0x
-  Execution time increased: 6.0x
-  Scaling efficiency: 1.51 (1.0 = perfect linear)
 
 PySpark-Congestion:
   Dataset size increased: 2.0x
@@ -117,6 +68,6 @@ PySpark-Congestion:
 6. RECOMMENDATIONS
 --------------------------------------------------------------------------------
 • Overall fastest tool: Hive-Congestion
-• Best scaling efficiency: Hive-BusyRoad
+• Best scaling efficiency: Hive-Congestion
 
 ================================================================================

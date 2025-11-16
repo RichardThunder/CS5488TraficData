@@ -1,6 +1,7 @@
 from benchmark.base_analysis_test import BaseAnalysisTest
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, hour, sum as spark_sum, desc
+from pyspark.sql.types import IntegerType, DoubleType
 from pyspark import StorageLevel
 import pandas as pd
 import logging
@@ -212,7 +213,11 @@ class PandasBusyRoadTest(BaseAnalysisTest):
 
         logger.info("Preprocessing: extracting hour from period_from and selecting columns")
         analysis_df = cleaned_spark.withColumn("hour", hour(col("period_from"))).select(
-            "Road_EN", "District", "volume", "occupancy", "hour"
+            col("Road_EN"),
+            col("District"),
+            col("volume").cast(IntegerType()).alias("volume"),
+            col("occupancy").cast(IntegerType()).alias("occupancy"),
+            col("hour")
         )
 
         logger.info("Converting to Pandas DataFrame")
@@ -445,8 +450,16 @@ class PandasCongestionTest(BaseAnalysisTest):
             col("volume").isNotNull()
         )
 
+        logger.info("Selecting columns needed for analysis and casting numeric types")
+        analysis_df = cleaned_spark.select(
+            col("Road_EN"),
+            col("District"),
+            col("volume").cast(IntegerType()).alias("volume"),
+            col("occupancy").cast(IntegerType()).alias("occupancy")
+        )
+
         logger.info("Converting to Pandas DataFrame")
-        df_pandas = cleaned_spark.toPandas()
+        df_pandas = analysis_df.toPandas()
         logger.info(f"Converted to Pandas. Records: {len(df_pandas):,}")
         return df_pandas
 
